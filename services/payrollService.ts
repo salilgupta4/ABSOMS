@@ -1,0 +1,398 @@
+import { db, Timestamp, DocumentSnapshot } from '@/services/firebase';
+import {
+    PayrollEmployee, LeaveRequest, AdvancePayment, PayrollRecord, PayrollSettings, AdvanceTransaction
+} from '@/types';
+import { collection, query, orderBy, where, getDocs, doc, setDoc, updateDoc, addDoc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
+
+// --- Helper to process Firestore Timestamps ---
+const processDoc = (docSnap: DocumentSnapshot): any => {
+    const data = docSnap.data() as any;
+    if (!data) return { id: docSnap.id };
+    
+    // Convert all timestamp fields
+    Object.keys(data).forEach(key => {
+        if (data[key] instanceof Timestamp) {
+            data[key] = data[key].toDate().toISOString();
+        }
+    });
+
+    return { id: docSnap.id, ...data };
+};
+
+
+// --- Employee Service ---
+const employeesCollection = collection(db, 'payroll_employees');
+
+export const getPayrollEmployees = async (): Promise<PayrollEmployee[]> => {
+    const q = query(employeesCollection, orderBy('name', 'asc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => processDoc(doc) as PayrollEmployee);
+};
+
+export const savePayrollEmployee = async (employeeData: Omit<PayrollEmployee, 'id'> & {id?: string}): Promise<PayrollEmployee> => {
+    const { id, ...dataToSave } = employeeData;
+    if (id) {
+        const docRef = doc(db, 'payroll_employees', id);
+        await updateDoc(docRef, dataToSave);
+        return { id, ...dataToSave } as PayrollEmployee;
+    } else {
+        const docRef = await addDoc(employeesCollection, dataToSave);
+        return { id: docRef.id, ...dataToSave } as PayrollEmployee;
+    }
+};
+
+export const deletePayrollEmployee = async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'payroll_employees', id));
+};
+
+
+// --- Payroll Record Service ---
+const payrollRecordsCollection = collection(db, 'payroll_records');
+
+export const getPayrollRecords = async (month: string): Promise<PayrollRecord[]> => {
+    const q = query(payrollRecordsCollection, where('payroll_month', '==', month));
+    const snapshot = await getDocs(q);
+    const records = snapshot.docs.map(doc => processDoc(doc) as PayrollRecord);
+    // Sort client-side to avoid needing a composite index
+    return records.sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+};
+
+export const getYearlyPayrollRecords = async (year: string): Promise<PayrollRecord[]> => {
+    const startDate = `${year}-01`;
+    const endDate = `${parseInt(year) + 1}-01`;
+    const q = query(payrollRecordsCollection, where('payroll_month', '>=', startDate), where('payroll_month', '<', endDate));
+    const snapshot = await getDocs(q);
+    const records = snapshot.docs.map(doc => processDoc(doc) as PayrollRecord);
+    return records.sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+};
+
+
+export const savePayrollRecords = async (recordsToSave: Omit<PayrollRecord, 'id'>[]): Promise<void> => {
+    const batch = writeBatch(db);
+    
+    const employeeIds = recordsToSave.map(r => r.employee_id);
+    if (employeeIds.length === 0) return;
+    
+    const advancesQuery = query(collection(db, 'payroll_advances'), where('employee_id', 'in', employeeIds), where('status', '==', 'Active'));
+    const advancesSnapshot = await getDocs(advancesQuery);
+    const activeAdvances = new Map<string, AdvancePayment>(advancesSnapshot.docs.map(doc => {
+        const data = doc.data() as Omit<AdvancePayment, 'id'>;
+        return [data.employee_id, { id: doc.id, ...data }];
+    }));
+
+    for (const record of recordsToSave) {
+        const docRef = doc(payrollRecordsCollection);
+        
+        // Handle advance deduction logic BEFORE saving the record
+        if (record.advance_deduction > 0) {
+            const advance = activeAdvances.get(record.employee_id);
+            if (advance) {
+                // Set the advance_payment_id in the record BEFORE saving
+                (record as PayrollRecord).advance_payment_id = advance.id;
+                
+                const advanceRef = doc(db, 'payroll_advances', advance.id);
+                const newBalance = (advance.balance_amount || 0) - record.advance_deduction;
+                
+                const newTransaction: AdvanceTransaction = {
+                    date: new Date().toISOString(),
+                    type: 'deducted',
+                    amount: record.advance_deduction,
+                    notes: `Deducted in payroll for ${record.payroll_month}`,
+                    related_doc_id: docRef.id,
+                };
+
+                const updatedTransactions = [...(advance.transactions || []), newTransaction];
+
+                batch.update(advanceRef, {
+                    balance_amount: newBalance,
+                    status: newBalance <= 0 ? 'Fully Deducted' : 'Active',
+                    transactions: updatedTransactions
+                });
+            }
+        }
+        
+        // Now save the record with the advance_payment_id included
+        batch.set(docRef, record);
+    }
+    
+    await batch.commit();
+};
+
+export const revertSinglePayrollRecord = async (recordId: string): Promise<void> => {
+    const payrollDocRef = doc(db, 'payroll_records', recordId);
+    const payrollDoc = await getDoc(payrollDocRef);
+    if (!payrollDoc.exists()) throw new Error("Payroll record not found.");
+
+    const record = processDoc(payrollDoc) as PayrollRecord;
+    const batch = writeBatch(db);
+
+    if (record.advance_deduction > 0) {
+        let advanceToRevert: AdvancePayment | null = null;
+        let advanceRef: any = null;
+
+        // Try to find advance by advance_payment_id first
+        if (record.advance_payment_id) {
+            advanceRef = doc(db, 'payroll_advances', record.advance_payment_id);
+            const advanceSnap = await getDoc(advanceRef);
+            if (advanceSnap.exists()) {
+                advanceToRevert = advanceSnap.data() as AdvancePayment;
+            }
+        }
+
+        // Fallback: find advance by employee_id if advance_payment_id failed
+        if (!advanceToRevert && record.employee_id) {
+            const advanceQuery = query(
+                collection(db, 'payroll_advances'), 
+                where('employee_id', '==', record.employee_id),
+                where('status', 'in', ['Active', 'Fully Deducted'])
+            );
+            const advanceSnapshot = await getDocs(advanceQuery);
+            
+            if (!advanceSnapshot.empty) {
+                const advanceDoc = advanceSnapshot.docs[0]; // Get the first matching advance
+                advanceToRevert = advanceDoc.data() as AdvancePayment;
+                advanceRef = advanceDoc.ref;
+            }
+        }
+
+        // If we found an advance to revert
+        if (advanceToRevert && advanceRef) {
+            const revertedBalance = (advanceToRevert.balance_amount || 0) + record.advance_deduction;
+            
+            const newTransaction: AdvanceTransaction = {
+                date: new Date().toISOString(),
+                type: 'reverted',
+                amount: record.advance_deduction,
+                notes: `Reverted from payroll for ${record.payroll_month}`,
+                related_doc_id: recordId,
+            };
+
+            const updatedTransactions = [...(advanceToRevert.transactions || []), newTransaction];
+
+            batch.update(advanceRef, {
+                balance_amount: revertedBalance,
+                status: 'Active',
+                transactions: updatedTransactions
+            });
+        }
+    }
+    
+    batch.delete(payrollDocRef);
+    await batch.commit();
+};
+
+export const deletePayrollRun = async (month: string): Promise<void> => {
+    const recordsQuery = query(payrollRecordsCollection, where('payroll_month', '==', month));
+    const recordsSnapshot = await getDocs(recordsQuery);
+
+    if (recordsSnapshot.empty) {
+        console.log("No records to delete for this month.");
+        return;
+    }
+
+    const batch = writeBatch(db);
+    const recordsToDelete = recordsSnapshot.docs.map(doc => {
+        const data = doc.data() as Omit<PayrollRecord, 'id'>;
+        return { id: doc.id, ...data } as PayrollRecord;
+    });
+
+
+    for (const record of recordsToDelete) {
+        // Revert advance if applicable
+        if (record.advance_deduction > 0) {
+            let advanceToRevert: AdvancePayment | null = null;
+            let advanceRef: any = null;
+
+            // Try to find advance by advance_payment_id first
+            if (record.advance_payment_id) {
+                advanceRef = doc(db, 'payroll_advances', record.advance_payment_id);
+                const advanceSnap = await getDoc(advanceRef);
+                if (advanceSnap.exists()) {
+                    advanceToRevert = advanceSnap.data() as AdvancePayment;
+                }
+            }
+
+            // Fallback: find advance by employee_id if advance_payment_id failed
+            if (!advanceToRevert && record.employee_id) {
+                const advanceQuery = query(
+                    collection(db, 'payroll_advances'), 
+                    where('employee_id', '==', record.employee_id),
+                    where('status', 'in', ['Active', 'Fully Deducted'])
+                );
+                const advanceSnapshot = await getDocs(advanceQuery);
+                
+                if (!advanceSnapshot.empty) {
+                    const advanceDoc = advanceSnapshot.docs[0]; // Get the first matching advance
+                    advanceToRevert = advanceDoc.data() as AdvancePayment;
+                    advanceRef = advanceDoc.ref;
+                }
+            }
+
+            // If we found an advance to revert
+            if (advanceToRevert && advanceRef) {
+                const revertedBalance = (advanceToRevert.balance_amount || 0) + record.advance_deduction;
+
+                const newTransaction: AdvanceTransaction = {
+                    date: new Date().toISOString(),
+                    type: 'reverted',
+                    amount: record.advance_deduction,
+                    notes: `Reverted from deleted payroll for ${record.payroll_month}`,
+                    related_doc_id: record.id,
+                };
+
+                const updatedTransactions = [...(advanceToRevert.transactions || []), newTransaction];
+
+                batch.update(advanceRef, {
+                    balance_amount: revertedBalance,
+                    status: 'Active',
+                    transactions: updatedTransactions
+                });
+                
+                console.log(`Reverted advance deduction of ₹${record.advance_deduction} for ${record.employee_name}`);
+            } else {
+                console.warn(`Could not find advance to revert for employee ${record.employee_name} (deduction: ₹${record.advance_deduction})`);
+            }
+        }
+        
+        // Delete the payroll record itself
+        const recordRef = doc(db, 'payroll_records', record.id);
+        batch.delete(recordRef);
+    }
+
+    await batch.commit();
+};
+
+
+// --- Leave Management Service ---
+const leaveRequestsCollection = collection(db, 'payroll_leaves');
+
+export const getLeaveRequests = async (): Promise<LeaveRequest[]> => {
+    const q = query(leaveRequestsCollection, orderBy('start_date', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => processDoc(doc) as LeaveRequest);
+};
+
+export const saveLeaveRequest = async (leaveData: Omit<LeaveRequest, 'id'> & {id?: string}): Promise<LeaveRequest> => {
+    const { id, ...dataToSave } = leaveData;
+    if (id) {
+        const docRef = doc(db, 'payroll_leaves', id);
+        await updateDoc(docRef, dataToSave);
+        return { id, ...dataToSave } as LeaveRequest;
+    } else {
+        const docRef = await addDoc(leaveRequestsCollection, { ...dataToSave, created_at: Timestamp.now() });
+        return { id: docRef.id, ...dataToSave } as LeaveRequest;
+    }
+};
+
+export const updateLeaveRequestStatus = async (id: string, status: 'approved' | 'rejected', approverId: string, rejectionReason?: string) => {
+    const docRef = doc(db, 'payroll_leaves', id);
+    await updateDoc(docRef, {
+        status,
+        approved_by: approverId,
+        approved_at: Timestamp.now(),
+        rejection_reason: rejectionReason || null,
+    });
+};
+
+export const deleteLeaveRequest = async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'payroll_leaves', id));
+};
+
+
+// --- Advance Payments Service ---
+const advancesCollection = collection(db, 'payroll_advances');
+
+export const getAdvancePayments = async (): Promise<AdvancePayment[]> => {
+    const q = query(advancesCollection, orderBy('date_given', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => processDoc(doc) as AdvancePayment);
+};
+
+export const saveAdvancePayment = async (advanceData: Omit<AdvancePayment, 'id' | 'balance_amount' | 'status'> & {id?: string}): Promise<AdvancePayment> => {
+    const { id, ...dataToSave } = advanceData;
+
+    // Check for an existing active advance for this employee
+    const q = query(advancesCollection, where('employee_id', '==', dataToSave.employee_id), where('status', '==', 'Active'));
+    const existingSnapshot = await getDocs(q);
+
+    if (!existingSnapshot.empty) {
+        // Top up existing advance
+        const existingDoc = existingSnapshot.docs[0];
+        const existingData = existingDoc.data() as AdvancePayment;
+        
+        const newTransaction: AdvanceTransaction = {
+            date: new Date().toISOString(),
+            type: 'topped-up',
+            amount: dataToSave.amount,
+            notes: dataToSave.notes || 'Additional advance given',
+        };
+
+        const updatedTransactions = [...(existingData.transactions || []), newTransaction];
+        const newTotalAmount = (existingData.amount || 0) + dataToSave.amount;
+        const newBalanceAmount = (existingData.balance_amount || 0) + dataToSave.amount;
+
+        await updateDoc(existingDoc.ref, {
+            amount: newTotalAmount,
+            balance_amount: newBalanceAmount,
+            notes: dataToSave.notes, // Overwrite notes with the latest one
+            transactions: updatedTransactions,
+        });
+        return { id: existingDoc.id, ...existingDoc.data(), amount: newTotalAmount, balance_amount: newBalanceAmount, transactions: updatedTransactions } as AdvancePayment;
+
+    } else {
+        // Create new advance
+         const newTransaction: AdvanceTransaction = {
+            date: new Date().toISOString(),
+            type: 'issued',
+            amount: dataToSave.amount,
+            notes: dataToSave.notes || 'Initial advance',
+        };
+        const finalData = { 
+            ...dataToSave, 
+            balance_amount: dataToSave.amount, 
+            status: 'Active',
+            transactions: [newTransaction]
+        };
+
+        const docRef = await addDoc(advancesCollection, { ...finalData, date_given: Timestamp.now() });
+        return { id: docRef.id, ...finalData } as AdvancePayment;
+    }
+};
+
+export const deleteAdvancePayment = async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'payroll_advances', id));
+};
+
+
+// --- Settings Service ---
+const SETTINGS_KEY = 'payrollSettings';
+const settingsDocRef = doc(db, "settings", SETTINGS_KEY);
+
+const defaultSettings: PayrollSettings = {
+    pf_enabled: true,
+    esi_enabled: true,
+    pt_enabled: true,
+    tds_enabled: false,
+    pf_percentage: 12,
+    esi_percentage: 1.75,
+    pt_amount: 200,
+    tds_percentage: 0,
+    hra_percentage: 20,
+    special_allowance_percentage: 30,
+    basic_pay_percentage: 50,
+};
+
+export const getPayrollSettings = async (): Promise<PayrollSettings> => {
+    const docSnap = await getDoc(settingsDocRef);
+    if (docSnap.exists()) {
+        return { ...defaultSettings, ...docSnap.data() } as PayrollSettings;
+    } else {
+        // "Self-healing": If settings don't exist in DB, create them with defaults.
+        await savePayrollSettings(defaultSettings);
+        return defaultSettings;
+    }
+};
+
+export const savePayrollSettings = async (settings: PayrollSettings): Promise<void> => {
+    await setDoc(settingsDocRef, settings, { merge: true });
+};

@@ -1,0 +1,313 @@
+
+
+import React, { useState, useEffect, useMemo } from 'react';
+import * as ReactRouterDOM from 'react-router-dom';
+const { Link } = ReactRouterDOM;
+import Card from '@/components/ui/Card';
+import { DeliveryOrder, DocumentStatus, DocumentLineItem, SalesOrder, Address } from '@/types';
+import { Eye, Trash2, Edit, ArrowUpDown } from 'lucide-react';
+import { getDocumentNumberingSettings } from '@/components/settings/DocumentNumbering';
+import { db, Timestamp, DocumentSnapshot } from '@/services/firebase';
+import { collection, query, orderBy, getDocs, doc, getDoc, updateDoc, writeBatch, setDoc, deleteDoc, where } from 'firebase/firestore';
+
+// --- FIRESTORE DATA SERVICE ---
+const processDoc = (docSnap: DocumentSnapshot): DeliveryOrder => {
+    const data = docSnap.data() as any;
+    if (data.deliveryDate && data.deliveryDate instanceof Timestamp) {
+        data.deliveryDate = data.deliveryDate.toDate().toISOString();
+    }
+     if (data.orderDate && data.orderDate instanceof Timestamp) {
+        data.orderDate = data.orderDate.toDate().toISOString();
+    }
+    return { id: docSnap.id, ...data } as DeliveryOrder;
+};
+
+export const getDeliveryOrders = async (): Promise<DeliveryOrder[]> => {
+    const q = query(collection(db, 'delivery_orders'), orderBy('deliveryDate', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(processDoc);
+};
+
+export const getDeliveryOrder = async (id: string): Promise<DeliveryOrder | undefined> => {
+    const docRef = doc(db, 'delivery_orders', id);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? processDoc(docSnap) : undefined;
+};
+
+export const createDeliveryOrder = async (
+    salesOrderId: string,
+    deliveryItems: DocumentLineItem[],
+    shippingAddress: Address,
+    contactId: string,
+    contactName: string,
+    contactPhone: string,
+    contactEmail: string,
+    vehicleNumber?: string,
+    additionalDescription?: string
+): Promise<DeliveryOrder> => {
+    
+    const soRef = doc(db, "sales_orders", salesOrderId);
+    const soSnap = await getDoc(soRef);
+    if (!soSnap.exists()) throw new Error("Sales Order not found.");
+    const parentSO = { id: soSnap.id, ...soSnap.data() } as SalesOrder;
+
+    const settings = await getDocumentNumberingSettings();
+    const doSettings = settings.deliveryOrder;
+    const prefix = doSettings.prefix.replace('{CUST}', parentSO.customerName.substring(0, 4).toUpperCase());
+    const suffix = doSettings.suffix.replace('{CUST}', parentSO.customerName.substring(0, 4).toUpperCase());
+    const deliveryNumber = `${prefix}${String(doSettings.nextNumber).padStart(4, '0')}${suffix}`;
+    
+    const newDOData = {
+        deliveryNumber,
+        salesOrderId: parentSO.id,
+        salesOrderNumber: parentSO.orderNumber,
+        customerId: parentSO.customerId,
+        customerName: parentSO.customerName,
+        customerGstin: parentSO.customerGstin,
+        contactId,
+        contactName,
+        contactPhone,
+        contactEmail,
+        deliveryDate: Timestamp.now(),
+        billingAddress: parentSO.billingAddress,
+        shippingAddress: shippingAddress,
+        lineItems: deliveryItems,
+        status: DocumentStatus.Dispatched,
+        vehicleNumber,
+        additionalDescription,
+    };
+
+    const batch = writeBatch(db);
+
+    // 1. Create the new Delivery Order
+    const newDORef = doc(collection(db, 'delivery_orders'));
+    batch.set(newDORef, newDOData);
+
+    // 2. Update SO delivered quantities
+    const updatedDeliveredQuantities = { ...(parentSO.deliveredQuantities || {}) };
+    deliveryItems.forEach(item => {
+        updatedDeliveredQuantities[item.id] = (updatedDeliveredQuantities[item.id] || 0) + item.quantity;
+    });
+
+    const isFullyDelivered = parentSO.lineItems.every((item: DocumentLineItem) =>
+        (updatedDeliveredQuantities[item.id] || 0) >= item.quantity
+    );
+
+    batch.update(soRef, {
+        deliveredQuantities: updatedDeliveredQuantities,
+        status: isFullyDelivered ? DocumentStatus.Closed : DocumentStatus.Partial
+    });
+
+    // 3. Update numbering settings
+    settings.deliveryOrder.nextNumber++;
+    const settingsRef = doc(db, 'settings', 'docNumbering');
+    batch.set(settingsRef, settings);
+
+    await batch.commit();
+    
+    const savedDoc = await getDeliveryOrder(newDORef.id);
+    if (!savedDoc) throw new Error("Could not retrieve saved delivery order");
+    return savedDoc;
+};
+
+export const updateDeliveryOrder = async (updatedDO: DeliveryOrder): Promise<DeliveryOrder> => {
+    const { id, ...dataToUpdate } = updatedDO;
+    const doRef = doc(db, 'delivery_orders', id);
+    // Convert date string back to Timestamp for storage if needed, or handle in component
+    await updateDoc(doRef, {
+        ...dataToUpdate,
+        deliveryDate: Timestamp.fromDate(new Date(dataToUpdate.deliveryDate)),
+    });
+    return updatedDO;
+}
+
+export const deleteDeliveryOrder = async (id: string): Promise<void> => {
+    const doToDelete = await getDeliveryOrder(id);
+    if (!doToDelete) throw new Error("Delivery Order not found.");
+
+    const soRef = doc(db, 'sales_orders', doToDelete.salesOrderId);
+    const soSnap = await getDoc(soRef);
+    if (!soSnap.exists()) throw new Error("Parent Sales Order not found.");
+    const parentSO = { id: soSnap.id, ...soSnap.data() } as SalesOrder;
+
+    const batch = writeBatch(db);
+
+    // 1. Delete the DO
+    const doRef = doc(db, 'delivery_orders', id);
+    batch.delete(doRef);
+
+    // 2. Revert quantities on the SO
+    const updatedDeliveredQuantities = { ...(parentSO.deliveredQuantities || {}) };
+    doToDelete.lineItems.forEach(item => {
+        updatedDeliveredQuantities[item.id] = Math.max(0, (updatedDeliveredQuantities[item.id] || 0) - item.quantity);
+    });
+    
+    const totalDelivered = (Object.values(updatedDeliveredQuantities) as number[]).reduce((a: number, b: number) => a + b, 0);
+    const newStatus = totalDelivered > 0 ? DocumentStatus.Partial : DocumentStatus.Approved;
+
+    batch.update(soRef, {
+        deliveredQuantities: updatedDeliveredQuantities,
+        status: newStatus
+    });
+
+    await batch.commit();
+};
+
+// --- END FIRESTORE DATA SERVICE ---
+
+
+const statusColors: { [key in DocumentStatus]?: string } = {
+    [DocumentStatus.Dispatched]: 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100',
+};
+
+type SortKey = 'deliveryNumber' | 'salesOrderNumber' | 'customerName' | 'deliveryDate';
+
+const DeliveryOrderList: React.FC = () => {
+    const [orders, setOrders] = useState<DeliveryOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'deliveryDate', direction: 'descending' });
+
+
+    const fetchOrders = () => {
+        setLoading(true);
+        getDeliveryOrders().then(data => {
+            setOrders(data);
+            setLoading(false);
+        });
+    };
+
+    useEffect(() => {
+        fetchOrders();
+    }, []);
+
+    const handleDelete = (id: string) => {
+        if (window.confirm("Are you sure you want to delete this Delivery Order? This will revert the delivered quantities on the Sales Order.")) {
+            deleteDeliveryOrder(id).then(() => {
+                alert("Delivery Order deleted.");
+                fetchOrders();
+            }).catch(err => alert(err.message));
+        }
+    }
+
+    const requestSort = (key: SortKey) => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedAndFilteredOrders = useMemo(() => {
+        let sortableItems = [...orders];
+
+        if (statusFilter !== 'all') {
+            sortableItems = sortableItems.filter(o => o.status === statusFilter);
+        }
+
+        if (searchTerm) {
+            sortableItems = sortableItems.filter(o =>
+                o.deliveryNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                o.salesOrderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                o.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        if (sortConfig !== null) {
+            sortableItems.sort((a, b) => {
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
+                if (sortConfig.key === 'deliveryDate') {
+                    return sortConfig.direction === 'ascending' ? new Date(aValue).getTime() - new Date(bValue).getTime() : new Date(bValue).getTime() - new Date(aValue).getTime();
+                }
+                if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+                if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [orders, searchTerm, sortConfig, statusFilter]);
+
+    const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
+        <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(sortKey)}>
+            <div className="flex items-center">
+                {children}
+                <ArrowUpDown size={14} className="ml-2 opacity-50"/>
+            </div>
+        </th>
+    );
+
+    return (
+        <Card title="Delivery Orders" bodyClassName="">
+             <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-4 items-center">
+                <input
+                    type="text"
+                    placeholder="Filter by DO #, SO #, or customer..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full sm:w-1/3 px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm"
+                />
+                <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full sm:w-auto px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
+                >
+                    <option value="all">All Statuses</option>
+                    <option value={DocumentStatus.Dispatched}>Dispatched</option>
+                </select>
+            </div>
+             {loading ? (
+                <p className="p-4 text-center">Loading delivery orders...</p>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
+                        <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-700">
+                            <tr>
+                                <SortableHeader sortKey="deliveryNumber">Delivery #</SortableHeader>
+                                <SortableHeader sortKey="salesOrderNumber">SO #</SortableHeader>
+                                <SortableHeader sortKey="customerName">Customer</SortableHeader>
+                                <SortableHeader sortKey="deliveryDate">Date</SortableHeader>
+                                <th className="px-6 py-3">Status</th>
+                                <th className="px-6 py-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedAndFilteredOrders.map(o => (
+                                <tr key={o.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600">
+                                    <td className="px-6 py-4 font-bold">
+                                        <Link to={`/sales/deliveries/${o.id}/view`} className="text-primary hover:underline">{o.deliveryNumber}</Link>
+                                    </td>
+                                    <td className="px-6 py-4">{o.salesOrderNumber}</td>
+                                    <td className="px-6 py-4">{o.customerName}</td>
+                                    <td className="px-6 py-4">{new Date(o.deliveryDate).toLocaleDateString('en-GB')}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[o.status] || 'bg-gray-100'}`}>
+                                            {o.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex items-center justify-end space-x-2">
+                                            <Link to={`/sales/deliveries/${o.id}/view`} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full"><Eye size={16} /></Link>
+                                            <Link to={`/sales/deliveries/${o.id}/edit`} className="p-2 text-primary hover:bg-primary-light rounded-full"><Edit size={16} /></Link>
+                                            <button onClick={() => handleDelete(o.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {sortedAndFilteredOrders.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                                    No delivery orders found. Create one from a Sales Order.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </Card>
+    );
+};
+
+export default DeliveryOrderList;

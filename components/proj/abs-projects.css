@@ -1,0 +1,250 @@
+/* ABS Projects Pro - Modular CSS */
+
+/* Root variables for easy theming and ABS OMS integration */
+:root {
+  --abs-primary-color: #0d6efd;
+  --abs-secondary-color: #6c757d;
+  --abs-success-color: #198754;
+  --abs-danger-color: #dc3545;
+  --abs-warning-color: #ffc107;
+  --abs-info-color: #0dcaf0;
+  
+  --abs-border-radius: 0.375rem;
+  --abs-box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --abs-card-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.1);
+  
+  --abs-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --abs-font-size-sm: 0.875rem;
+}
+
+/* Base module styles */
+.abs-projects-module {
+  font-family: var(--abs-font-family);
+}
+
+/* Enhanced measurement table */
+.measurement-table {
+  font-size: var(--abs-font-size-sm);
+  border-radius: var(--abs-border-radius);
+  overflow: hidden;
+  box-shadow: var(--abs-card-shadow);
+}
+
+.measurement-table .measurement-header-old {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.measurement-table .measurement-header-new {
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+  font-weight: 600;
+}
+
+.measurement-table .add-item-row {
+  background-color: #f8f9fa !important;
+  border-top: 2px solid #dee2e6;
+}
+
+.measurement-table .add-item-row input {
+  border: 1px solid #ced4da;
+  border-radius: var(--abs-border-radius);
+  font-size: 0.8rem;
+  min-width: 70px;
+}
+
+.measurement-table .add-item-row input:focus {
+  border-color: var(--abs-primary-color);
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Project status badges */
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.badge-planned {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.badge-in-progress {
+  background-color: #cff4fc;
+  color: #055160;
+  border: 1px solid #9eeaf9;
+}
+
+.badge-completed {
+  background-color: #d1edff;
+  color: #0f5132;
+  border: 1px solid #9ec5fe;
+}
+
+/* Enhanced project cards */
+.project-card {
+  transition: all 0.2s ease-in-out;
+  border-radius: var(--abs-border-radius);
+  box-shadow: var(--abs-card-shadow);
+}
+
+.project-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Button improvements */
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--abs-danger-color);
+  padding: 0.25rem;
+  border-radius: var(--abs-border-radius);
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-icon:hover {
+  background-color: rgba(220, 53, 69, 0.1);
+  color: var(--abs-danger-color);
+}
+
+/* Editable elements */
+.editable {
+  cursor: pointer;
+  padding: 0.125rem 0.25rem;
+  border-radius: var(--abs-border-radius);
+  transition: background-color 0.15s ease-in-out;
+}
+
+.editable:hover {
+  background-color: #f8f9fa;
+}
+
+.editable.is-editing {
+  background-color: #fff3cd;
+  outline: 2px solid var(--abs-warning-color);
+}
+
+/* Responsive table improvements */
+@media (max-width: 992px) {
+  .measurement-table {
+    font-size: 0.75rem;
+  }
+  
+  .measurement-table th,
+  .measurement-table td {
+    padding: 0.375rem 0.25rem;
+  }
+  
+  .measurement-table .add-item-row input {
+    min-width: 60px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .measurement-table {
+    overflow-x: auto;
+    display: block;
+    white-space: nowrap;
+  }
+  
+  .measurement-table thead,
+  .measurement-table tbody,
+  .measurement-table tfoot {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+}
+
+/* Financial table improvements */
+.financials-table {
+  box-shadow: var(--abs-card-shadow);
+  border-radius: var(--abs-border-radius);
+  overflow: hidden;
+}
+
+.financials-table .add-item-row {
+  background-color: #f8f9fa !important;
+  border-top: 2px solid #dee2e6;
+}
+
+/* Notification positioning for modular integration */
+#notification-container {
+  position: fixed;
+  top: 80px;
+  right: 1rem;
+  z-index: 1080;
+  max-width: 350px;
+}
+
+/* Dark mode support for ABS OMS integration */
+[data-bs-theme="dark"] {
+  --abs-primary-color: #0d6efd;
+  --abs-card-shadow: 0 0.125rem 0.25rem rgba(255, 255, 255, 0.1);
+}
+
+[data-bs-theme="dark"] .measurement-table .measurement-header-old {
+  background-color: #1a365d;
+  color: #90cdf4;
+}
+
+[data-bs-theme="dark"] .measurement-table .measurement-header-new {
+  background-color: #44337a;
+  color: #d6bcfa;
+}
+
+[data-bs-theme="dark"] .project-card {
+  border-color: #495057;
+}
+
+/* ABS OMS Integration utilities */
+.abs-module-container {
+  min-height: calc(100vh - 120px);
+}
+
+.abs-module-header {
+  background: linear-gradient(135deg, var(--abs-primary-color) 0%, #0056b3 100%);
+  color: white;
+  padding: 1rem 0;
+  margin-bottom: 2rem;
+  border-radius: var(--abs-border-radius);
+}
+
+/* Export/Import buttons styling */
+.export-import-section {
+  background-color: #f8f9fa;
+  border-radius: var(--abs-border-radius);
+  padding: 1rem;
+  margin: 1rem 0;
+  border: 1px solid #dee2e6;
+}
+
+/* Utility classes for modular integration */
+.abs-hide-in-module {
+  display: block;
+}
+
+.abs-show-in-module {
+  display: none;
+}
+
+/* When integrated into ABS OMS */
+.abs-oms-integrated .abs-hide-in-module {
+  display: none;
+}
+
+.abs-oms-integrated .abs-show-in-module {
+  display: block;
+}
+
+.abs-oms-integrated .navbar {
+  display: none;
+}

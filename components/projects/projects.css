@@ -1,0 +1,97 @@
+/* Projects Module Styles - Integration with ABS OMS */
+
+.projects-module-container {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.projects-module {
+  font-family: inherit;
+}
+
+.projects-module .card {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.projects-module .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.projects-module .project-card {
+  border: 1px solid rgba(0, 0, 0, 0.125);
+  border-radius: 0.5rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.projects-module .project-card:hover {
+  border-color: var(--bs-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.projects-module .btn-primary {
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+.projects-module .text-primary {
+  color: var(--bs-primary) !important;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .projects-module .card {
+    background-color: var(--bs-dark);
+    border-color: rgba(255, 255, 255, 0.125);
+  }
+  
+  .projects-module .project-card:hover {
+    border-color: var(--bs-primary);
+  }
+}
+
+/* Integration with OMS theme variables */
+.projects-module {
+  --projects-primary: var(--bs-primary, #0d6efd);
+  --projects-success: var(--bs-success, #198754);
+  --projects-danger: var(--bs-danger, #dc3545);
+  --projects-warning: var(--bs-warning, #ffc107);
+  --projects-info: var(--bs-info, #0dcaf0);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .projects-module .card-title {
+    font-size: 1.1rem;
+  }
+  
+  .projects-module .h4 {
+    font-size: 1.3rem;
+  }
+}
+
+/* Icon adjustments for OMS consistency */
+.projects-module .lucide {
+  width: 16px;
+  height: 16px;
+  vertical-align: text-bottom;
+}
+
+/* Status badges styling */
+.projects-module .badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Loading state */
+.projects-module .spinner-border {
+  width: 2rem;
+  height: 2rem;
+}
+
+/* Search input styling */
+.projects-module .form-control:focus {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
