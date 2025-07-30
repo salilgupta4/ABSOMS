@@ -145,13 +145,6 @@ const SAMPLE_PROJECTS: Project[] = [
 
 class ProjectsService {
   async getAllProjects(): Promise<Project[]> {
-    // For debugging - force localStorage mode
-    console.log('getAllProjects called - forcing localStorage mode for debugging');
-    const localProjects = this.getProjectsFromLocalStorage();
-    console.log('Loaded projects from localStorage:', localProjects.length);
-    return localProjects;
-
-    /* Original Firebase code - commented out for debugging
     try {
       const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
@@ -159,27 +152,34 @@ class ProjectsService {
         id: doc.id,
         ...doc.data()
       } as Project));
-      console.log('Loaded projects from Firebase:', firebaseProjects.length);
+      console.log('Successfully loaded from Firebase:', firebaseProjects.length);
+      
+      // If Firebase is empty, initialize with sample data
+      if (firebaseProjects.length === 0) {
+        console.log('Firebase is empty, initializing with sample data...');
+        await this.initializeSampleData();
+        // Reload after initialization
+        const querySnapshot2 = await getDocs(q);
+        const initializedProjects = querySnapshot2.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Project));
+        console.log('Initialized Firebase with sample data:', initializedProjects.length);
+        return initializedProjects;
+      }
+      
       return firebaseProjects;
     } catch (error) {
-      console.error('Error fetching projects from Firebase:', error);
+      console.warn('Firebase not available, using localStorage:', error.message);
       // Fallback to localStorage for offline use
       const localProjects = this.getProjectsFromLocalStorage();
-      console.log('Loaded projects from localStorage:', localProjects.length);
+      console.log('Loaded from localStorage:', localProjects.length);
       return localProjects;
     }
-    */
   }
 
   async createProject(projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
-    // For debugging - force localStorage mode
-    console.log('createProject called - forcing localStorage mode for debugging');
-    return this.createProjectInLocalStorage(projectData);
-
-    /* Original Firebase code - commented out for debugging
     try {
-      console.log('projectsService.createProject called with:', projectData);
-      
       const now = new Date().toISOString();
       const newProject = {
         ...projectData,
@@ -187,32 +187,23 @@ class ProjectsService {
         updatedAt: now
       };
       
-      console.log('Attempting to save to Firebase:', newProject);
-      
       const docRef = await addDoc(collection(db, COLLECTION_NAME), newProject);
       const project = { id: docRef.id, ...newProject };
       
-      console.log('Saved to Firebase successfully:', project);
+      console.log('Successfully created project in Firebase:', project.id);
       
       // Also save to localStorage as backup
       this.saveProjectToLocalStorage(project);
       
       return project;
     } catch (error) {
-      console.error('Error creating project in Firebase:', error);
-      console.log('Falling back to localStorage');
+      console.warn('Firebase not available for create, using localStorage:', error.message);
       // Fallback to localStorage
       return this.createProjectInLocalStorage(projectData);
     }
-    */
   }
 
   async updateProject(projectId: string, updates: Partial<Project>): Promise<void> {
-    // For debugging - force localStorage mode
-    console.log('updateProject called - forcing localStorage mode for debugging');
-    this.updateProjectInLocalStorage(projectId, updates);
-
-    /* Original Firebase code - commented out for debugging
     try {
       const updatedData = {
         ...updates,
@@ -228,7 +219,6 @@ class ProjectsService {
       // Fallback to localStorage
       this.updateProjectInLocalStorage(projectId, updates);
     }
-    */
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -246,14 +236,10 @@ class ProjectsService {
     try {
       const projects = localStorage.getItem('abs_projects_module');
       if (projects) {
-        const parsedProjects = JSON.parse(projects);
-        console.log('Found existing projects in localStorage:', parsedProjects.length);
-        return parsedProjects;
+        return JSON.parse(projects);
       } else {
         // Initialize with sample data if no data exists
-        console.log('No projects in localStorage, initializing with sample data');
         this.saveProjectsToLocalStorage(SAMPLE_PROJECTS);
-        console.log('Saved sample projects to localStorage:', SAMPLE_PROJECTS.length);
         return SAMPLE_PROJECTS;
       }
     } catch (error) {
@@ -271,17 +257,12 @@ class ProjectsService {
   }
 
   private saveProjectToLocalStorage(project: Project): void {
-    console.log('Adding project to localStorage:', project.id);
     const projects = this.getProjectsFromLocalStorage();
-    console.log('Current projects count:', projects.length);
     projects.unshift(project);
-    console.log('New projects count:', projects.length);
     this.saveProjectsToLocalStorage(projects);
   }
 
   private createProjectInLocalStorage(projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Project {
-    console.log('Creating project in localStorage:', projectData);
-    
     const now = new Date().toISOString();
     const project: Project = {
       id: `proj-${Date.now()}`,
@@ -290,11 +271,7 @@ class ProjectsService {
       updatedAt: now
     };
     
-    console.log('Generated project for localStorage:', project);
-    
     this.saveProjectToLocalStorage(project);
-    console.log('Project saved to localStorage successfully');
-    
     return project;
   }
 
@@ -311,6 +288,31 @@ class ProjectsService {
     const projects = this.getProjectsFromLocalStorage();
     const filtered = projects.filter(p => p.id !== projectId);
     this.saveProjectsToLocalStorage(filtered);
+  }
+
+  // Initialize Firebase with sample data
+  private async initializeSampleData(): Promise<void> {
+    try {
+      for (const sampleProject of SAMPLE_PROJECTS) {
+        const { id, createdAt, updatedAt, ...projectData } = sampleProject;
+        
+        // Clean up measurements field for Firebase - remove undefined
+        const cleanProjectData: any = { ...projectData };
+        if (cleanProjectData.measurements === undefined) {
+          delete cleanProjectData.measurements;
+        }
+        
+        await addDoc(collection(db, COLLECTION_NAME), {
+          ...cleanProjectData,
+          createdAt: createdAt || new Date().toISOString(),
+          updatedAt: updatedAt || new Date().toISOString()
+        });
+      }
+      console.log('Sample data initialized in Firebase');
+    } catch (error) {
+      console.error('Error initializing sample data:', error);
+      throw error;
+    }
   }
 
   // Utility methods for project calculations
