@@ -2,13 +2,15 @@
 
 import React from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
-const { NavLink, Outlet } = ReactRouterDOM;
-import { Building, Palette, ListOrdered, FileJson, FileText, Database, Users } from 'lucide-react';
+const { NavLink, Outlet, useLocation } = ReactRouterDOM;
+import { Building, Palette, ListOrdered, FileJson, FileText, Database, Users, Wrench } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { canAccessAdminFeatures } from '@/utils/permissions';
+import FixUserPermissions from '../admin/FixUserPermissions';
 
 const SettingsPage: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const canSeeDataManagement = canAccessAdminFeatures(user);
   
   const navItems = [
@@ -18,8 +20,14 @@ const SettingsPage: React.FC = () => {
     { name: 'Document Numbering', path: 'numbering', icon: <ListOrdered size={20} /> },
     { name: 'PDF Templates', path: 'pdf', icon: <FileJson size={20} /> },
     { name: 'Terms & Conditions', path: 'terms', icon: <FileText size={20} /> },
-    ...(canSeeDataManagement ? [{ name: 'Data Management', path: 'data', icon: <Database size={20} /> }] : []),
+    ...(canSeeDataManagement ? [
+      { name: 'Data Management', path: 'data', icon: <Database size={20} /> },
+      { name: 'Fix Permissions', path: 'fix-permissions', icon: <Wrench size={20} /> }
+    ] : []),
   ];
+
+  // Show fix permissions component when on the fix-permissions path
+  const isFixPermissionsPath = location.pathname.endsWith('/fix-permissions');
 
   return (
     <div>
@@ -47,7 +55,7 @@ const SettingsPage: React.FC = () => {
         </div>
         <div className="lg:w-3/4">
            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-8">
-            <Outlet />
+            {isFixPermissionsPath ? <FixUserPermissions /> : <Outlet />}
            </div>
         </div>
       </div>

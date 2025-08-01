@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             resource.data.role == 'Admin';
+    }
+    
+    // Helper function to check if current user is admin
+    function isCurrentUserAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+    
+    // Helper function to check if user has access to a module
+    function hasModuleAccess(module) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data[module] == true;
+    }
+    
+    // Users collection - Admin can create/read/update, users can read their own profile
+    match /users/{userId} {
+      allow read: if isAuthenticated() && 
+                     (request.auth.uid == userId || isCurrentUserAdmin());
+      allow create: if isAuthenticated() && 
+                       (isCurrentUserAdmin() || request.auth.uid == userId);
+      allow update: if isAuthenticated() && 
+                       (isCurrentUserAdmin() || request.auth.uid == userId);
+      allow delete: if isCurrentUserAdmin();
+    }
+    
+    // Company settings - Admin only
+    match /company_settings/{document} {
+      allow read, write: if isCurrentUserAdmin();
+    }
+    
+    // Settings - Admin only
+    match /settings/{document} {
+      allow read, write: if isCurrentUserAdmin();
+    }
+    
+    // ERP modules - require ERP access
+    match /customers/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /products/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /vendors/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /quotes/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /sales_orders/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /delivery_orders/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /purchase_orders/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /stock_movements/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    match /inventory/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    // Payroll modules - require Payroll access
+    match /payroll_employees/{document} {
+      allow read, write: if hasModuleAccess('hasPayrollAccess');
+    }
+    
+    match /payroll_advances/{document} {
+      allow read, write: if hasModuleAccess('hasPayrollAccess');
+    }
+    
+    match /payroll_records/{document} {
+      allow read, write: if hasModuleAccess('hasPayrollAccess');
+    }
+    
+    match /payroll_settings/{document} {
+      allow read, write: if hasModuleAccess('hasPayrollAccess');
+    }
+    
+    // Projects modules - require Projects access
+    match /projects_module/{document} {
+      allow read, write: if hasModuleAccess('hasProjectsAccess');
+    }
+    
+    // Chat messages - authenticated users only
+    match /chat_messages/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Scratchpads - authenticated users only
+    match /scratchpads/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Point of contacts - require ERP access
+    match /points_of_contact/{document} {
+      allow read, write: if hasModuleAccess('hasErpAccess');
+    }
+    
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

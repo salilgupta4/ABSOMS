@@ -35,7 +35,9 @@
       "Bash(git commit:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(ssh:*)"
+      "Bash(ssh:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(firebase projects:list:*)"
     ],
     "deny": []
   }
