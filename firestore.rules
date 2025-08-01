@@ -6,12 +6,6 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // Helper function to check if user is admin
-    function isAdmin() {
-      return isAuthenticated() && 
-             resource.data.role == 'Admin';
-    }
-    
     // Helper function to check if current user is admin
     function isCurrentUserAdmin() {
       return isAuthenticated() && 
@@ -24,6 +18,21 @@ service cloud.firestore {
       return isAuthenticated() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data[module] == true;
+    }
+    
+    // Helper function for ERP access (Admin gets full access)
+    function hasErpAccess() {
+      return isCurrentUserAdmin() || hasModuleAccess('hasErpAccess');
+    }
+    
+    // Helper function for Payroll access (Admin gets full access)
+    function hasPayrollAccess() {
+      return isCurrentUserAdmin() || hasModuleAccess('hasPayrollAccess');
+    }
+    
+    // Helper function for Projects access (Admin gets full access)
+    function hasProjectsAccess() {
+      return isCurrentUserAdmin() || hasModuleAccess('hasProjectsAccess');
     }
     
     // Users collection - Admin can create/read/update, users can read their own profile
@@ -47,63 +56,63 @@ service cloud.firestore {
       allow read, write: if isCurrentUserAdmin();
     }
     
-    // ERP modules - require ERP access
+    // ERP modules - Admin or users with ERP access
     match /customers/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /products/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /vendors/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /quotes/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /sales_orders/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /delivery_orders/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /purchase_orders/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /stock_movements/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
     match /inventory/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+      allow read, write: if hasErpAccess();
     }
     
-    // Payroll modules - require Payroll access
+    // Payroll modules - Admin or users with Payroll access
     match /payroll_employees/{document} {
-      allow read, write: if hasModuleAccess('hasPayrollAccess');
+      allow read, write: if hasPayrollAccess();
     }
     
     match /payroll_advances/{document} {
-      allow read, write: if hasModuleAccess('hasPayrollAccess');
+      allow read, write: if hasPayrollAccess();
     }
     
     match /payroll_records/{document} {
-      allow read, write: if hasModuleAccess('hasPayrollAccess');
+      allow read, write: if hasPayrollAccess();
     }
     
     match /payroll_settings/{document} {
-      allow read, write: if hasModuleAccess('hasPayrollAccess');
+      allow read, write: if hasPayrollAccess();
     }
     
-    // Projects modules - require Projects access
+    // Projects modules - Admin or users with Projects access
     match /projects_module/{document} {
-      allow read, write: if hasModuleAccess('hasProjectsAccess');
+      allow read, write: if hasProjectsAccess();
     }
     
     // Chat messages - authenticated users only
@@ -116,9 +125,9 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
     
-    // Point of contacts - require ERP access
-    match /points_of_contact/{document} {
-      allow read, write: if hasModuleAccess('hasErpAccess');
+    // Point of contacts - Admin or users with ERP access (fix collection name)
+    match /point_of_contacts/{document} {
+      allow read, write: if hasErpAccess();
     }
     
     // Default deny all other collections
