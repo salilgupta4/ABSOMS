@@ -75,6 +75,12 @@ function updateProjectInState(updatedProject: Project) {
  * Surgically updates all displayed totals and calculated values on the Project Detail page.
  */
 function refreshProjectDisplays(project: Project) {
+    // Don't update displays if user is currently editing
+    if ((window as any).currentlyEditing) {
+        console.log('Skipping refresh while editing is active');
+        return;
+    }
+    
     const totals = calculateProjectTotals(project);
 
     // Update main overview
@@ -642,34 +648,98 @@ function handleAppEvent(e: Event) {
         // Inline Editing
         case 'make-editable': {
             if (actionTarget.isContentEditable) return;
+            
+            // Store reference globally to prevent other operations during editing
+            (window as any).currentlyEditing = actionTarget;
+            
             actionTarget.contentEditable = 'true';
-            actionTarget.focus();
-            document.execCommand('selectAll', false, undefined);
             actionTarget.classList.add('is-editing');
             const originalValue = actionTarget.textContent;
 
+            let isEditing = true;
+            let blurTimeout: number | null = null;
+
             const save = () => {
+                if (!isEditing) return;
+                console.log('Saving edit for:', actionTarget.dataset.field);
+                isEditing = false;
                 actionTarget.contentEditable = 'false';
                 actionTarget.classList.remove('is-editing');
+                (window as any).currentlyEditing = null;
+                if (blurTimeout) {
+                    clearTimeout(blurTimeout);
+                    blurTimeout = null;
+                }
                 handleSaveEdit(actionTarget, originalValue);
                 cleanUp();
             };
             const cancel = () => {
+                if (!isEditing) return;
+                console.log('Canceling edit for:', actionTarget.dataset.field);
+                isEditing = false;
                 actionTarget.contentEditable = 'false';
                 actionTarget.classList.remove('is-editing');
                 actionTarget.textContent = originalValue;
+                (window as any).currentlyEditing = null;
+                if (blurTimeout) {
+                    clearTimeout(blurTimeout);
+                    blurTimeout = null;
+                }
                 cleanUp();
             }
             const handleKey = (ev: KeyboardEvent) => {
-                if (ev.key === 'Enter') { ev.preventDefault(); save(); }
-                if (ev.key === 'Escape') cancel();
+                ev.stopPropagation(); // Prevent other key handlers
+                if (ev.key === 'Enter') { 
+                    ev.preventDefault(); 
+                    save(); 
+                }
+                if (ev.key === 'Escape') {
+                    ev.preventDefault();
+                    cancel();
+                }
+            }
+            const handleBlur = (ev: FocusEvent) => {
+                console.log('Blur event triggered for:', actionTarget.dataset.field);
+                // Clear any existing timeout
+                if (blurTimeout) {
+                    clearTimeout(blurTimeout);
+                }
+                // Only save if we're truly losing focus (not to another part of the same app)
+                blurTimeout = window.setTimeout(() => {
+                    if (isEditing && document.activeElement !== actionTarget && 
+                        !document.activeElement?.closest('.editable')) {
+                        console.log('Auto-saving due to blur for:', actionTarget.dataset.field);
+                        save();
+                    }
+                    blurTimeout = null;
+                }, 500); // Increased timeout
             }
             const cleanUp = () => {
-                actionTarget.removeEventListener('blur', save);
+                actionTarget.removeEventListener('blur', handleBlur);
                 actionTarget.removeEventListener('keydown', handleKey);
+                if (blurTimeout) {
+                    clearTimeout(blurTimeout);
+                    blurTimeout = null;
+                }
             }
-            actionTarget.addEventListener('blur', save, { once: true });
+            
+            // Prevent any other operations while editing
+            actionTarget.addEventListener('blur', handleBlur);
             actionTarget.addEventListener('keydown', handleKey);
+            
+            // Focus immediately without delay to prevent issues
+            actionTarget.focus();
+            
+            // Select all text after focus
+            setTimeout(() => {
+                if (isEditing && document.activeElement === actionTarget) {
+                    const range = document.createRange();
+                    range.selectNodeContents(actionTarget);
+                    const selection = window.getSelection();
+                    selection?.removeAllRanges();
+                    selection?.addRange(range);
+                }
+            }, 50);
             break;
         }
         
@@ -736,7 +806,12 @@ function handleSaveEdit(element: HTMLElement, originalValue: string | null) {
                  }
                  needsRefresh = false; // No calculations depend on this
             } else if (field in measurement) {
-                (measurement as any)[field] = (field.toLowerCase().includes('dis')) ? newValue : numValue;
+                if (field.toLowerCase().includes('dis')) {
+                    (measurement as any)[field] = newValue;
+                    needsRefresh = false; // Description changes don't affect calculations
+                } else {
+                    (measurement as any)[field] = numValue;
+                }
             }
         }
     } else { return; }

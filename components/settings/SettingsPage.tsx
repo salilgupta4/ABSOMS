@@ -3,16 +3,22 @@
 import React from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 const { NavLink, Outlet } = ReactRouterDOM;
-import { Building, Palette, ListOrdered, FileJson, FileText, Database } from 'lucide-react';
+import { Building, Palette, ListOrdered, FileJson, FileText, Database, Users } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { canAccessAdminFeatures } from '@/utils/permissions';
 
 const SettingsPage: React.FC = () => {
+  const { user } = useAuth();
+  const canSeeDataManagement = canAccessAdminFeatures(user);
+  
   const navItems = [
     { name: 'Company Details', path: 'company', icon: <Building size={20} /> },
+    { name: 'Point of Contact', path: 'contacts', icon: <Users size={20} /> },
     { name: 'Theme Colors', path: 'theme', icon: <Palette size={20} /> },
     { name: 'Document Numbering', path: 'numbering', icon: <ListOrdered size={20} /> },
     { name: 'PDF Templates', path: 'pdf', icon: <FileJson size={20} /> },
     { name: 'Terms & Conditions', path: 'terms', icon: <FileText size={20} /> },
-    { name: 'Data Management', path: 'data', icon: <Database size={20} /> },
+    ...(canSeeDataManagement ? [{ name: 'Data Management', path: 'data', icon: <Database size={20} /> }] : []),
   ];
 
   return (
@@ -29,7 +35,7 @@ const SettingsPage: React.FC = () => {
                   `flex items-center px-4 py-3 rounded-lg text-sm font-medium ${
                     isActive
                       ? 'bg-primary text-white'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-primary-light hover:text-white dark:hover:bg-slate-700'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-primary-light hover:text-primary dark:hover:bg-slate-700 dark:hover:text-slate-200'
                   }`
                 }
               >

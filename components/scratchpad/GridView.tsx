@@ -510,27 +510,60 @@ const GridView: React.FC<{ scratchpad: Scratchpad }> = ({ scratchpad }) => {
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
+        // Check file type
+        const fileExtension = file.name.toLowerCase().split('.').pop();
+        
+        if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+            alert('Excel files (.xlsx/.xls) are not supported yet. Please save your file as CSV format and try again.');
+            e.target.value = ''; // Clear the input
+            return;
+        }
+        
+        if (fileExtension !== 'csv') {
+            alert('Only CSV files are supported. Please select a .csv file.');
+            e.target.value = ''; // Clear the input
+            return;
+        }
+        
         const reader = new FileReader();
         reader.onload = (event) => {
-            const text = event.target?.result as string;
-            const rows = text.split(/\r?\n/);
-            const newData: Record<string, GridCell> = {};
-            rows.forEach((row, r) => {
-                if (row.trim()) {
-                    const cols = row.split(',');
-                    cols.forEach((col, c) => {
-                        if (r < numRows && c < numCols) {
-                            const cellId = getCellId({ row: r, col: c });
-                            const value = col.trim().replace(/^"|"$/g, '').replace(/""/g, '"');
-                            if (value) newData[cellId] = { value };
-                        }
-                    });
-                }
-            });
-            updateGridData(newData);
-            alert('Import completed successfully!');
+            try {
+                const text = event.target?.result as string;
+                const rows = text.split(/\r?\n/);
+                const newData: Record<string, GridCell> = {};
+                let importedCells = 0;
+                
+                rows.forEach((row, r) => {
+                    if (row.trim()) {
+                        const cols = row.split(',');
+                        cols.forEach((col, c) => {
+                            if (r < numRows && c < numCols) {
+                                const cellId = getCellId({ row: r, col: c });
+                                const value = col.trim().replace(/^"|"$/g, '').replace(/""/g, '"');
+                                if (value) {
+                                    newData[cellId] = { value };
+                                    importedCells++;
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                updateGridData(newData);
+                alert(`Import completed successfully! Imported ${importedCells} cells from CSV file.`);
+            } catch (error) {
+                alert('Error importing CSV file. Please check the file format and try again.');
+                console.error('Import error:', error);
+            }
         };
+        
+        reader.onerror = () => {
+            alert('Error reading file. Please try again.');
+        };
+        
         reader.readAsText(file);
+        e.target.value = ''; // Clear the input after processing
     };
 
     // Initialize history
@@ -599,10 +632,10 @@ const GridView: React.FC<{ scratchpad: Scratchpad }> = ({ scratchpad }) => {
                     
                     <div className="flex items-center gap-2">
                         <Button onClick={handleExport} variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
-                        <label className="cursor-pointer">
+                        <label className="cursor-pointer" title="Import CSV files only">
                             <Button as="span" variant="secondary" size="sm" icon={<Upload size={14}/>}>
-                                Import
-                                <input type="file" accept=".csv,.xlsx,.xls" onChange={handleImport} className="hidden" />
+                                Import CSV
+                                <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
                             </Button>
                         </label>
                         <Button onClick={() => addRows()} variant="secondary" size="sm" icon={<Plus size={14}/>}>+50 Rows</Button>

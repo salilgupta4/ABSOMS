@@ -157,7 +157,8 @@ export const DATA_DEFAULTS: DataDefaults = {
         email: '',
         role: UserRole.Viewer,
         hasErpAccess: false,
-        hasPayrollAccess: false
+        hasPayrollAccess: false,
+        hasProjectsAccess: false
     }
 };
 
@@ -506,6 +507,7 @@ export const validateUser = (data: any): ValidationResult => {
     user.email = sanitizeString(user.email);
     user.hasErpAccess = sanitizeBoolean(user.hasErpAccess, false);
     user.hasPayrollAccess = sanitizeBoolean(user.hasPayrollAccess, false);
+    user.hasProjectsAccess = sanitizeBoolean(user.hasProjectsAccess, false);
     
     // Validate role
     if (!Object.values(UserRole).includes(user.role)) {

@@ -1,6 +1,6 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore, collection, getDocs, writeBatch, doc } from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, Auth, signInWithEmailAndPassword } from 'firebase/auth';
 
 // ============================================================================
 // FIREBASE MIGRATION UTILITY
@@ -34,6 +34,20 @@ const initializeOldFirebase = () => {
     return true;
   } catch (error) {
     console.error('Failed to initialize old Firebase:', error);
+    return false;
+  }
+};
+
+// Authenticate with old Firebase using current user's credentials
+const authenticateOldFirebase = async (email: string, password: string): Promise<boolean> => {
+  try {
+    await signInWithEmailAndPassword(oldAuth, email, password);
+    console.log('Successfully authenticated with old Firebase');
+    return true;
+  } catch (error: any) {
+    console.error('Failed to authenticate with old Firebase:', error);
+    // If authentication fails, try without authentication (in case the old project allows it)
+    console.log('Attempting to proceed without authentication...');
     return false;
   }
 };
@@ -178,7 +192,8 @@ export const migrateCollection = async (
 // Migrate all collections
 export const migrateAllData = async (
   onProgress?: (progress: MigrationProgress) => void,
-  selectedCollections?: string[]
+  selectedCollections?: string[],
+  credentials?: { email: string; password: string }
 ): Promise<MigrationResult> => {
   const result: MigrationResult = {
     success: false,
@@ -207,6 +222,28 @@ export const migrateAllData = async (
     if (!initialized) {
       result.errors.push('Failed to initialize connection to old Firebase project');
       return result;
+    }
+
+    // Try to authenticate with old Firebase if credentials are provided
+    if (credentials) {
+      if (onProgress) {
+        onProgress({
+          currentCollection: '',
+          completedCollections: 0,
+          totalCollections: 0,
+          currentDocuments: 0,
+          totalDocuments: 0,
+          status: 'initializing',
+          message: 'Authenticating with old Firebase project...'
+        });
+      }
+      
+      const authenticated = await authenticateOldFirebase(credentials.email, credentials.password);
+      if (!authenticated) {
+        console.log('Proceeding without authentication - some collections may be inaccessible');
+      }
+    } else {
+      console.log('No credentials provided - attempting migration without authentication');
     }
     
     const collectionsToMigrate = selectedCollections || COLLECTIONS_TO_MIGRATE;

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Bell, UserCircle, ChevronDown, Sun, Moon, LogOut, Settings, Menu } from 'lucide-react';
+import { Bell, UserCircle, ChevronDown, Sun, Moon, LogOut, Settings, Menu, ChevronRight, Home } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,7 +23,62 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const pathnames = location.pathname.split('/').filter(x => x);
-  const pageTitle = pathnames.length > 0 ? pathnames.map(capitalizeFirstLetter).join(' > ') : 'Dashboard';
+  
+  // Map common paths to readable labels
+  const getLabelForPath = (path: string): string => {
+    const labelMap: { [key: string]: string } = {
+      'dashboard': 'Dashboard',
+      'sales': 'Sales',
+      'quotes': 'Quotes',
+      'orders': 'Orders',
+      'deliveries': 'Deliveries',
+      'purchase': 'Purchase',
+      'customers': 'Customers',
+      'products': 'Products',
+      'inventory': 'Inventory',
+      'payroll': 'Payroll',
+      'settings': 'Settings',
+      'users': 'Users',
+      'new': 'New',
+      'edit': 'Edit',
+      'view': 'View',
+      'scratchpad': 'Scratchpad',
+      'projects': 'Projects',
+      'vendors': 'Vendors'
+    };
+    return labelMap[path] || capitalizeFirstLetter(path);
+  };
+  
+  const buildBreadcrumbs = () => {
+    if (pathnames.length === 0) return null;
+    
+    let currentPath = '';
+    return pathnames.map((path, index) => {
+      currentPath += `/${path}`;
+      const isLast = index === pathnames.length - 1;
+      const isId = /^[a-zA-Z0-9]{20,}$/.test(path); // Skip display of document IDs
+      
+      if (isId) return null;
+      
+      return (
+        <React.Fragment key={index}>
+          <ChevronRight size={14} className="text-slate-400 mx-1" />
+          {isLast ? (
+            <span className="text-slate-700 dark:text-slate-200 font-medium">
+              {getLabelForPath(path)}
+            </span>
+          ) : (
+            <Link 
+              to={currentPath} 
+              className="text-slate-600 dark:text-slate-300 hover:text-primary transition-colors"
+            >
+              {getLabelForPath(path)}
+            </Link>
+          )}
+        </React.Fragment>
+      );
+    }).filter(Boolean);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -36,12 +91,21 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   }, []);
 
   return (
-    <header className="h-20 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 shrink-0">
+    <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 shrink-0">
       <div className="flex items-center space-x-4">
          <button onClick={onMenuClick} className="md:hidden text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white">
             <Menu size={24} />
          </button>
-        <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200">{pageTitle}</h2>
+        <nav className="flex items-center text-sm">
+          <Link 
+            to="/dashboard" 
+            className="flex items-center text-slate-600 dark:text-slate-300 hover:text-primary transition-colors"
+          >
+            <Home size={16} className="mr-1" />
+            <span className="hidden sm:inline">Home</span>
+          </Link>
+          {buildBreadcrumbs()}
+        </nav>
       </div>
       <div className="flex items-center space-x-6">
         <button onClick={toggleTheme} className="relative text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white">

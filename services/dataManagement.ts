@@ -635,7 +635,7 @@ export const restoreSystemBackup = async (
         selectedCollections?: string[];
     } = {}
 ): Promise<RestoreResult> => {
-    const { overwriteExisting = false, validateData = true, selectedCollections } = options;
+    const { overwriteExisting = false, validateData: shouldValidateData = true, selectedCollections } = options;
     
     try {
         const backupData = JSON.parse(backupJson);
@@ -698,7 +698,7 @@ export const restoreSystemBackup = async (
 
                     // Validate data if requested
                     let processedData = data;
-                    if (validateData && CSV_EXPORTABLE_COLLECTIONS.includes(collectionName)) {
+                    if (shouldValidateData && CSV_EXPORTABLE_COLLECTIONS.includes(collectionName)) {
                         const validation = validateData(collectionName, data);
                         if (!validation.isValid) {
                             errors.push(`${collectionName}/${id}: ${validation.errors.join(', ')}`);
@@ -928,4 +928,133 @@ export const getAllCollectionStats = async () => {
     }
     
     return stats;
+};
+
+// ============================================================================
+// DELETE ALL DATA FUNCTION
+// ============================================================================
+
+export interface DeleteAllDataResult {
+    success: boolean;
+    deletedCollections: string[];
+    totalDeletedRecords: number;
+    skippedCollections: string[];
+    errors: string[];
+    timestamp: string;
+}
+
+export const deleteAllDataExceptUsers = async (): Promise<DeleteAllDataResult> => {
+    try {
+        // Collections to delete (all except users)
+        const collectionsToDelete = ALL_COLLECTIONS.filter(collection => collection !== 'users');
+        
+        const deletedCollections: string[] = [];
+        const skippedCollections: string[] = [];
+        const errors: string[] = [];
+        let totalDeletedRecords = 0;
+
+        for (const collectionName of collectionsToDelete) {
+            try {
+                const querySnapshot = await getDocs(collection(db, collectionName));
+                
+                if (querySnapshot.empty) {
+                    skippedCollections.push(`${collectionName} (empty)`);
+                    continue;
+                }
+
+                // Delete documents in batches
+                const batch = writeBatch(db);
+                let batchCount = 0;
+                const batchLimit = 500;
+                let collectionDeletedCount = 0;
+
+                for (const docSnap of querySnapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    batchCount++;
+                    collectionDeletedCount++;
+
+                    if (batchCount >= batchLimit) {
+                        await batch.commit();
+                        const newBatch = writeBatch(db);
+                        Object.assign(batch, newBatch);
+                        batchCount = 0;
+                    }
+                }
+
+                // Commit remaining documents
+                if (batchCount > 0) {
+                    await batch.commit();
+                }
+
+                deletedCollections.push(collectionName);
+                totalDeletedRecords += collectionDeletedCount;
+
+            } catch (collectionError) {
+                const errorMsg = `Failed to delete ${collectionName}: ${
+                    collectionError instanceof Error ? collectionError.message : 'Unknown error'
+                }`;
+                errors.push(errorMsg);
+                console.error(errorMsg, collectionError);
+            }
+        }
+
+        // Also clean up subcollections if any exist
+        try {
+            const subcollectionGroups = ['user_profiles', 'employee_documents', 'advance_transactions'];
+            for (const groupName of subcollectionGroups) {
+                try {
+                    const groupQuery = query(collectionGroup(db, groupName));
+                    const groupSnapshot = await getDocs(groupQuery);
+                    
+                    if (!groupSnapshot.empty) {
+                        const batch = writeBatch(db);
+                        let batchCount = 0;
+                        
+                        for (const docSnap of groupSnapshot.docs) {
+                            batch.delete(docSnap.ref);
+                            batchCount++;
+                            totalDeletedRecords++;
+                            
+                            if (batchCount >= 500) {
+                                await batch.commit();
+                                const newBatch = writeBatch(db);
+                                Object.assign(batch, newBatch);
+                                batchCount = 0;
+                            }
+                        }
+                        
+                        if (batchCount > 0) {
+                            await batch.commit();
+                        }
+                        
+                        deletedCollections.push(`_subcollections_${groupName}`);
+                    }
+                } catch (e) {
+                    // Subcollection doesn't exist or access denied - this is fine
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to clean up subcollections:', e);
+        }
+
+        return {
+            success: deletedCollections.length > 0 || totalDeletedRecords > 0,
+            deletedCollections,
+            totalDeletedRecords,
+            skippedCollections,
+            errors,
+            timestamp: new Date().toISOString()
+        };
+
+    } catch (error) {
+        console.error('Delete all data error:', error);
+        return {
+            success: false,
+            deletedCollections: [],
+            totalDeletedRecords: 0,
+            skippedCollections: [],
+            errors: [error instanceof Error ? error.message : 'Unknown delete error'],
+            timestamp: new Date().toISOString()
+        };
+    }
 };

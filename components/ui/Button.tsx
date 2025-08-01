@@ -10,9 +10,10 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   to?: string;
   icon?: React.ReactNode;
   as?: React.ElementType;
+  shortcut?: string;
 }
 
-const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = 'md', to, icon, as, ...props }) => {
+const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = 'md', to, icon, as, shortcut, ...props }) => {
   const baseClasses = "rounded-lg font-semibold inline-flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variantClasses = {
@@ -29,16 +30,24 @@ const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = '
 
   const className = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${props.className || ''}`;
   
+  // Add title attribute for keyboard shortcut tooltip
+  const titleProp = shortcut ? { title: `Keyboard shortcut: ${shortcut}` } : {};
+  
   const content = (
       <>
         {icon && <span className={children ? "mr-2 -ml-1" : ""}>{icon}</span>}
         {children}
+        {shortcut && (
+          <span className="ml-2 opacity-60 text-xs font-normal">
+            {shortcut}
+          </span>
+        )}
       </>
   )
 
   if (to) {
     return (
-      <Link to={to} className={className}>
+      <Link to={to} className={className} {...titleProp}>
         {content}
       </Link>
     );
@@ -47,7 +56,7 @@ const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = '
   const Component = as || 'button';
 
   return (
-    <Component className={className} {...props}>
+    <Component className={className} {...titleProp} {...props}>
       {content}
     </Component>
   );

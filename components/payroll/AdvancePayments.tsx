@@ -129,15 +129,15 @@ const AdvancePayments: React.FC = () => {
                     </div>
                      <div>
                         <label>Amount (₹)</label>
-                        <input type="number" value={editingAdvance.amount || ''} onChange={e => setEditingAdvance(p => ({...p, amount: +e.target.value}))} className="w-full p-2 border rounded" required/>
+                        <input type="number" value={editingAdvance.amount || ''} onChange={e => setEditingAdvance(p => ({...p, amount: +e.target.value}))} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" required/>
                     </div>
                      <div>
                         <label>Date Given</label>
-                        <input type="date" value={editingAdvance.date_given?.split('T')[0] || ''} onChange={e => setEditingAdvance(p => ({...p, date_given: e.target.value}))} className="w-full p-2 border rounded" required/>
+                        <input type="date" value={editingAdvance.date_given?.split('T')[0] || ''} onChange={e => setEditingAdvance(p => ({...p, date_given: e.target.value}))} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" required/>
                     </div>
                      <div>
                         <label>Notes</label>
-                        <textarea value={editingAdvance.notes || ''} onChange={e => setEditingAdvance(p => ({...p, notes: e.target.value}))} className="w-full p-2 border rounded" />
+                        <textarea value={editingAdvance.notes || ''} onChange={e => setEditingAdvance(p => ({...p, notes: e.target.value}))} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
                     </div>
                     <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
                 </form>

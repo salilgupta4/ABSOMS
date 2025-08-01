@@ -5,10 +5,12 @@ import * as ReactRouterDOM from 'react-router-dom';
 const { useParams, useNavigate } = ReactRouterDOM;
 import Card from '../ui/Card';
 import Button from '../ui/Button';
+import SearchableSelect from '../ui/SearchableSelect';
 import { Loader } from 'lucide-react';
-import { DeliveryOrder, Customer } from '../../types';
+import { DeliveryOrder, Customer, PointOfContact } from '../../types';
 import { getDeliveryOrder, updateDeliveryOrder } from './DeliveryOrderList';
 import { getCustomer } from '../customers/CustomerList';
+import { getPointsOfContact } from '@/services/pointOfContactService';
 
 const DeliveryOrderEditForm: React.FC = () => {
     const { id } = useParams();
@@ -16,6 +18,7 @@ const DeliveryOrderEditForm: React.FC = () => {
 
     const [order, setOrder] = useState<DeliveryOrder | null>(null);
     const [customer, setCustomer] = useState<Customer | null>(null);
+    const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -25,11 +28,15 @@ const DeliveryOrderEditForm: React.FC = () => {
             return;
         }
         setLoading(true);
-        getDeliveryOrder(id).then(data => {
+        Promise.all([
+            getDeliveryOrder(id),
+            getPointsOfContact()
+        ]).then(([data, contactsData]) => {
             if (data) {
                 // Format date for input field
                 data.deliveryDate = new Date(data.deliveryDate).toISOString().split('T')[0];
                 setOrder(data);
+                setPointsOfContact(contactsData || []);
                 return getCustomer(data.customerId);
             } else {
                 throw new Error("Delivery Order not found.");
@@ -127,6 +134,24 @@ const DeliveryOrderEditForm: React.FC = () => {
                         >
                             {customer?.contacts?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
+                    </div>
+                </div>
+            </Card>
+
+            <Card title="Our Point of Contact (Optional)">
+                <div className="p-6">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Our Point of Contact</label>
+                        <SearchableSelect
+                            value={order.pointOfContactId || ''}
+                            onChange={(value) => setOrder({ ...order, pointOfContactId: value || undefined })}
+                            options={pointsOfContact.map(c => ({
+                                value: c.id,
+                                label: `${c.name}${c.designation ? ` - ${c.designation}` : ''}`
+                            }))}
+                            placeholder="Select point of contact (optional)"
+                            disabled={saving}
+                        />
                     </div>
                 </div>
             </Card>

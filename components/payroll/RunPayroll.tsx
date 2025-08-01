@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { Loader, PlayCircle, Settings, UserCheck, Trash2, RotateCcw } from 'lucide-react';
 import { PayrollEmployee, EmployeeCategory, PayrollSettings, AdvancePayment, PayrollRecord } from '@/types';
 import { getPayrollEmployees, getPayrollRecords, savePayrollRecords, getPayrollSettings, getAdvancePayments, deletePayrollRun, revertSinglePayrollRecord } from '@/services/payrollService';
 import Modal from '@/components/ui/Modal';
+import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction } from '@/utils/permissions';
 
 interface PayrollInputs {
     [employeeId: string]: {
@@ -23,7 +25,8 @@ interface ProcessingSummary {
 }
 
 
-const RunPayroll: React.FC = () => {
+const RunPayroll: React.FC = React.memo(() => {
+    const { user } = useAuth();
     const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
     const [advances, setAdvances] = useState<AdvancePayment[]>([]);
     const [settings, setSettings] = useState<PayrollSettings | null>(null);
@@ -32,12 +35,20 @@ const RunPayroll: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
     
+    // Memoize permission checks to avoid recalculation on every render
+    const permissions = useMemo(() => ({
+        canCreate: canPerformAction(user, 'create'),
+        canEdit: canPerformAction(user, 'edit'),
+        canDelete: canPerformAction(user, 'delete')
+    }), [user]);
+    
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
     const [payrollInputs, setPayrollInputs] = useState<PayrollInputs>({});
     const [selectedEmployees, setSelectedEmployees] = useState<Record<string, boolean>>({});
     const [processingSummary, setProcessingSummary] = useState<ProcessingSummary | null>(null);
 
-    const fetchData = () => {
+    // Memoize fetchData to prevent recreation on every render
+    const fetchData = useCallback(() => {
         setLoading(true);
         Promise.all([
             getPayrollEmployees(),
@@ -77,31 +88,35 @@ const RunPayroll: React.FC = () => {
             setPayrollInputs(inputs);
             
         }).catch(console.error).finally(() => setLoading(false));
-    };
+    }, [selectedMonth]);
 
     useEffect(() => {
         fetchData();
-    }, [selectedMonth]);
+    }, [fetchData]);
     
-    const handleInputChange = (employeeId: string, field: keyof PayrollInputs[string], value: number | string) => {
+    // Memoize input change handler to prevent child re-renders
+    const handleInputChange = useCallback((employeeId: string, field: keyof PayrollInputs[string], value: number | string) => {
         setPayrollInputs(prev => ({ ...prev, [employeeId]: { ...prev[employeeId], [field]: value }}));
-    };
+    }, []);
 
-    const handleEmployeeSelect = (employeeId: string, isSelected: boolean) => {
+    // Memoize employee selection handler
+    const handleEmployeeSelect = useCallback((employeeId: string, isSelected: boolean) => {
         setSelectedEmployees(prev => ({...prev, [employeeId]: isSelected}));
-    };
+    }, []);
     
-    const handleSelectAll = (category: EmployeeCategory) => {
+    const processedEmployeeIds = useMemo(() => new Set(payrollRecords.map(r => r.employee_id)), [payrollRecords]);
+    
+    // Memoize select all handler with expensive filtering operations
+    const handleSelectAll = useCallback((category: EmployeeCategory) => {
         const categoryEmpIds = employees.filter(e => e.category === category && !processedEmployeeIds.has(e.id)).map(e => e.id);
         const allSelected = categoryEmpIds.every(id => selectedEmployees[id]);
         const newSelected: Record<string, boolean> = {...selectedEmployees};
         categoryEmpIds.forEach(id => newSelected[id] = !allSelected);
         setSelectedEmployees(newSelected);
-    };
-
-    const processedEmployeeIds = useMemo(() => new Set(payrollRecords.map(r => r.employee_id)), [payrollRecords]);
+    }, [employees, processedEmployeeIds, selectedEmployees]);
     
-    const calculateSalary = (employee: PayrollEmployee, inputs: PayrollInputs[string]) => {
+    // Memoize expensive salary calculation function
+    const calculateSalary = useCallback((employee: PayrollEmployee, inputs: PayrollInputs[string]) => {
         if (!settings) return null;
 
         const { days_present, overtime_hours, overtime_days } = inputs;
@@ -137,9 +152,10 @@ const RunPayroll: React.FC = () => {
         const tds = settings.tds_enabled ? (gross * settings.tds_percentage) / 100 : 0;
         
         return { basic, hra, special, overtime: overtimePay, gross, pf, esi, pt, tds };
-    };
+    }, [settings]);
     
-    const handleProcess = async () => {
+    // Memoize process handler
+    const handleProcess = useCallback(async () => {
         setProcessing(true);
         const toProcess = Object.keys(selectedEmployees).filter(id => selectedEmployees[id]);
         if(toProcess.length === 0) {
@@ -216,9 +232,10 @@ const RunPayroll: React.FC = () => {
         } finally {
             setProcessing(false);
         }
-    };
+    }, [selectedEmployees, employees, payrollInputs, settings, calculateSalary, selectedMonth, fetchData]);
 
-    const handleDeleteRun = async () => {
+    // Memoize delete run handler
+    const handleDeleteRun = useCallback(async () => {
         if(window.confirm(`Are you sure you want to delete the entire payroll run for ${selectedMonth}? This will also revert any advance deductions made. This action cannot be undone.`)){
             setProcessing(true);
             try {
@@ -232,9 +249,10 @@ const RunPayroll: React.FC = () => {
                 setProcessing(false);
             }
         }
-    }
+    }, [selectedMonth, fetchData]);
 
-    const handleRevertRecord = async (recordId: string) => {
+    // Memoize revert record handler
+    const handleRevertRecord = useCallback(async (recordId: string) => {
         if(window.confirm("Are you sure you want to revert this employee's payroll? This will delete the record and allow you to process it again.")){
              setProcessing(true);
             try {
@@ -248,9 +266,10 @@ const RunPayroll: React.FC = () => {
                 setProcessing(false);
             }
         }
-    }
+    }, [fetchData]);
 
-    const renderEmployeeTable = (category: EmployeeCategory) => {
+    // Memoize expensive render function
+    const renderEmployeeTable = useCallback((category: EmployeeCategory) => {
         const filteredEmployees = employees.filter(e => e.category === category && !processedEmployeeIds.has(e.id));
         if(filteredEmployees.length === 0) return <p className="text-slate-500 p-4 text-center">No pending employees in this category for {selectedMonth}.</p>;
         
@@ -261,7 +280,7 @@ const RunPayroll: React.FC = () => {
                 <table className="w-full text-sm">
                     <thead className="text-left bg-slate-100 dark:bg-slate-800">
                         <tr>
-                            <th className="p-2 w-12"><input type="checkbox" checked={allSelected} onChange={() => handleSelectAll(category)} /></th>
+                            <th className="p-2 w-12"><input type="checkbox" checked={allSelected} onChange={() => handleSelectAll(category)} disabled={!permissions.canEdit} /></th>
                             <th className="p-2">Employee</th>
                             <th className="p-2">Days Present</th>
                             <th className="p-2">Overtime</th>
@@ -274,20 +293,20 @@ const RunPayroll: React.FC = () => {
                             const empAdvance = advances.find(a => a.employee_id === emp.id && a.status === 'Active');
                             return (
                                 <tr key={emp.id} className="border-b dark:border-slate-700">
-                                    <td className="p-2"><input type="checkbox" checked={!!selectedEmployees[emp.id]} onChange={e => handleEmployeeSelect(emp.id, e.target.checked)} /></td>
+                                    <td className="p-2"><input type="checkbox" checked={!!selectedEmployees[emp.id]} onChange={e => handleEmployeeSelect(emp.id, e.target.checked)} disabled={!permissions.canEdit} /></td>
                                     <td className="p-2 font-medium">{emp.name}</td>
-                                    <td className="p-2"><input type="number" value={payrollInputs[emp.id]?.days_present} onChange={e => handleInputChange(emp.id, 'days_present', parseFloat(e.target.value) || 0)} className="w-20 p-1 bg-white dark:bg-slate-700 border rounded" /></td>
+                                    <td className="p-2"><input type="number" value={payrollInputs[emp.id]?.days_present} onChange={e => handleInputChange(emp.id, 'days_present', parseFloat(e.target.value) || 0)} className="w-20 p-1 bg-white dark:bg-slate-700 border rounded" disabled={!permissions.canEdit} /></td>
                                     <td className="p-2">
                                         {emp.category === 'Factory Worker' ? 
-                                            <input type="number" value={payrollInputs[emp.id]?.overtime_hours} onChange={e => handleInputChange(emp.id, 'overtime_hours', parseFloat(e.target.value) || 0)} className="w-20 p-1 bg-white dark:bg-slate-700 border rounded" />
+                                            <input type="number" value={payrollInputs[emp.id]?.overtime_hours} onChange={e => handleInputChange(emp.id, 'overtime_hours', parseFloat(e.target.value) || 0)} className="w-20 p-1 bg-white dark:bg-slate-700 border rounded" disabled={!permissions.canEdit} />
                                          : emp.category === 'On-site Personnel' ?
-                                            <input type="number" value={payrollInputs[emp.id]?.overtime_days} onChange={e => handleInputChange(emp.id, 'overtime_days', parseFloat(e.target.value) || 0)} className="w-20 p-1 bg-white dark:bg-slate-700 border rounded" />
+                                            <input type="number" value={payrollInputs[emp.id]?.overtime_days} onChange={e => handleInputChange(emp.id, 'overtime_days', parseFloat(e.target.value) || 0)} className="w-20 p-1 bg-white dark:bg-slate-700 border rounded" disabled={!permissions.canEdit} />
                                          : <input type="text" value="N/A" disabled className="w-20 p-1 text-center bg-slate-100 dark:bg-slate-800 border rounded" />
                                         }
                                     </td>
                                     <td className="p-2">
                                         <div className="flex items-center space-x-2">
-                                            <input type="number" value={payrollInputs[emp.id]?.advance_deduction} onChange={e => handleInputChange(emp.id, 'advance_deduction', parseFloat(e.target.value) || 0)} className="w-24 p-1 bg-white dark:bg-slate-700 border rounded" />
+                                            <input type="number" value={payrollInputs[emp.id]?.advance_deduction} onChange={e => handleInputChange(emp.id, 'advance_deduction', parseFloat(e.target.value) || 0)} className="w-24 p-1 bg-white dark:bg-slate-700 border rounded" disabled={!permissions.canEdit} />
                                             {empAdvance && (
                                                 <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                                     Bal: {empAdvance.balance_amount.toLocaleString()}
@@ -300,7 +319,7 @@ const RunPayroll: React.FC = () => {
                                             value={payrollInputs[emp.id]?.remittance_account_id}
                                             onChange={e => handleInputChange(emp.id, 'remittance_account_id', e.target.value)}
                                             className="p-1 border rounded bg-white dark:bg-slate-700 text-xs"
-                                            disabled={!emp.bankAccounts || emp.bankAccounts.length === 0}
+                                            disabled={!permissions.canEdit || !emp.bankAccounts || emp.bankAccounts.length === 0}
                                         >
                                             {emp.bankAccounts && emp.bankAccounts.length > 0 ? (
                                                 emp.bankAccounts.map(acc => (
@@ -320,17 +339,17 @@ const RunPayroll: React.FC = () => {
                 </table>
             </div>
         )
-    };
+    }, [employees, processedEmployeeIds, selectedMonth, selectedEmployees, handleSelectAll, payrollInputs, permissions.canEdit, handleInputChange, handleEmployeeSelect, advances]);
     
     if (loading) return <Card title="Loading Payroll Data..."><Loader className="animate-spin" /></Card>;
     if (!settings) return <Card title="Payroll Configuration Needed"><p className="p-4">Please configure your payroll settings first.</p><Button to="/payroll/settings" icon={<Settings/>}>Go to Settings</Button></Card>
 
     return (
         <div className="space-y-6">
-            <Card title="Run Payroll" actions={<Button onClick={handleProcess} disabled={processing || loading} icon={processing ? <Loader className="animate-spin" /> : <PlayCircle />}>Process Selected</Button>}>
+            <Card title="Run Payroll" actions={permissions.canCreate && <Button onClick={handleProcess} disabled={processing || loading} icon={processing ? <Loader className="animate-spin" /> : <PlayCircle />}>Process Selected</Button>}>
                 <div className="p-4 border-b">
                     <label className="mr-4">Payroll for Month:</label>
-                    <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border rounded bg-white dark:bg-slate-700" />
+                    <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
                 </div>
                 
                 <div className="space-y-6">
@@ -349,7 +368,7 @@ const RunPayroll: React.FC = () => {
                 </div>
             </Card>
 
-            <Card title="Processed Payroll for This Month" actions={payrollRecords.length > 0 && <Button variant="danger" onClick={handleDeleteRun} disabled={processing} icon={<Trash2 size={16}/>}>Delete This Run</Button>}>
+            <Card title="Processed Payroll for This Month" actions={payrollRecords.length > 0 && permissions.canDelete && <Button variant="danger" onClick={handleDeleteRun} disabled={processing} icon={<Trash2 size={16}/>}>Delete This Run</Button>}>
                 {payrollRecords.length > 0 ? (
                      <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -368,9 +387,9 @@ const RunPayroll: React.FC = () => {
                                         <td className="p-2 text-right font-semibold">₹{r.net_pay.toLocaleString()}</td>
                                         <td className="p-2 text-center"><UserCheck className="text-green-500 inline-block" /></td>
                                         <td className="p-2 text-right">
-                                            <Button variant="secondary" size="sm" onClick={() => handleRevertRecord(r.id)} disabled={processing} icon={<RotateCcw size={14}/>}>
+                                            {permissions.canEdit && <Button variant="secondary" size="sm" onClick={() => handleRevertRecord(r.id)} disabled={processing} icon={<RotateCcw size={14}/>}>
                                                 Revert
-                                            </Button>
+                                            </Button>}
                                         </td>
                                     </tr>
                                 ))}
@@ -403,6 +422,6 @@ const RunPayroll: React.FC = () => {
             </Modal>
         </div>
     );
-};
+});
 
 export default RunPayroll;

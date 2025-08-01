@@ -3,7 +3,7 @@ import {
     Database, Download, Upload, Shield, AlertTriangle, CheckCircle, 
     RefreshCw, Settings, FileText, HardDrive, BarChart3, Clock,
     Users, Package, ShoppingCart, FileSpreadsheet, AlertCircle,
-    PlayCircle, RotateCcw, Eye, EyeOff, ArrowRight
+    PlayCircle, RotateCcw, Eye, EyeOff, ArrowRight, Trash2
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import {
@@ -12,10 +12,12 @@ import {
     createSystemBackup,
     restoreSystemBackup,
     getAllCollectionStats,
+    deleteAllDataExceptUsers,
     ExportResult,
     ImportResult,
     BackupResult,
-    RestoreResult
+    RestoreResult,
+    DeleteAllDataResult
 } from '@/services/dataManagement';
 import {
     runFullIntegrityCheck,
@@ -101,7 +103,7 @@ const COLLECTIONS: CollectionInfo[] = [
 const DataManagement: React.FC = () => {
     const [collections, setCollections] = useState<CollectionInfo[]>(COLLECTIONS);
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'overview' | 'import' | 'export' | 'backup' | 'integrity'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'import' | 'export' | 'backup' | 'integrity' | 'danger'>('overview');
     // const [selectedCollection, setSelectedCollection] = useState<string>('');
     const [integrityReport, setIntegrityReport] = useState<IntegrityReport | null>(null);
     const [showIntegrityDetails, setShowIntegrityDetails] = useState(false);
@@ -109,6 +111,8 @@ const DataManagement: React.FC = () => {
         type: 'success' | 'error' | 'info' | 'warning';
         message: string;
     } | null>(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
     // Load collection statistics
     useEffect(() => {
@@ -303,6 +307,47 @@ const DataManagement: React.FC = () => {
             setOperationStatus({
                 type: 'error',
                 message: `Integrity check failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteAllData = async () => {
+        if (deleteConfirmation !== 'DELETE ALL DATA') {
+            setOperationStatus({
+                type: 'error',
+                message: 'Please type "DELETE ALL DATA" exactly to confirm this action'
+            });
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const result: DeleteAllDataResult = await deleteAllDataExceptUsers();
+            
+            if (result.success) {
+                setOperationStatus({
+                    type: 'success',
+                    message: `Successfully deleted ${result.totalDeletedRecords} records from ${result.deletedCollections.length} collections. Users collection was preserved.`
+                });
+                
+                // Refresh collection stats after deletion
+                await loadCollectionStats();
+            } else {
+                setOperationStatus({
+                    type: 'error',
+                    message: `Delete operation failed: ${result.errors.join(', ')}`
+                });
+            }
+            
+            setShowDeleteConfirmation(false);
+            setDeleteConfirmation('');
+            
+        } catch (error) {
+            setOperationStatus({
+                type: 'error',
+                message: `Delete operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
             });
         } finally {
             setLoading(false);
@@ -733,6 +778,114 @@ const DataManagement: React.FC = () => {
         </div>
     );
 
+    const renderDangerZone = () => (
+        <div className="space-y-6">
+            {/* Delete All Data */}
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg shadow-sm border border-red-200 dark:border-red-800">
+                <div className="p-6 border-b border-red-200 dark:border-red-700">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+                            <Trash2 size={24} className="text-red-600 dark:text-red-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">Delete All Data (Except Users)</h3>
+                    </div>
+                    <p className="text-red-700 dark:text-red-300 mb-4">
+                        This action will permanently delete ALL data from the system including customers, products, orders, payroll records, and settings. 
+                        Only user accounts will be preserved. This action cannot be undone.
+                    </p>
+                    <div className="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg p-4 mb-4">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle size={20} className="text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <h4 className="font-semibold text-red-800 dark:text-red-200 mb-2">⚠️ CRITICAL WARNING</h4>
+                                <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
+                                    <li>• This will delete ALL business data permanently</li>
+                                    <li>• Customer records, orders, and transaction history will be lost</li>
+                                    <li>• Payroll records and employee data will be deleted</li>
+                                    <li>• Product catalog and inventory data will be removed</li>
+                                    <li>• This operation cannot be reversed</li>
+                                    <li>• Always create a backup before proceeding</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {!showDeleteConfirmation ? (
+                        <Button
+                            variant="danger"
+                            onClick={() => setShowDeleteConfirmation(true)}
+                            disabled={loading}
+                            icon={<Trash2 size={16} />}
+                        >
+                            Initialize Data Deletion
+                        </Button>
+                    ) : (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                                    Type "DELETE ALL DATA" to confirm this action:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={deleteConfirmation}
+                                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                    className="w-full p-3 border-2 border-red-300 dark:border-red-600 rounded bg-white dark:bg-slate-700 text-red-900 dark:text-red-100 placeholder-red-400 focus:border-red-500 focus:ring-red-500"
+                                    placeholder="DELETE ALL DATA"
+                                    disabled={loading}
+                                />
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    variant="danger"
+                                    onClick={handleDeleteAllData}
+                                    disabled={loading || deleteConfirmation !== 'DELETE ALL DATA'}
+                                    icon={loading ? <RefreshCw className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                                >
+                                    {loading ? 'Deleting...' : 'Confirm Delete All Data'}
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setShowDeleteConfirmation(false);
+                                        setDeleteConfirmation('');
+                                    }}
+                                    disabled={loading}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Recommendations */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
+                <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-3">Before Deleting Data</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <h5 className="font-medium mb-2 text-blue-700 dark:text-blue-300">Recommended Steps:</h5>
+                        <ul className="space-y-1 text-blue-600 dark:text-blue-400">
+                            <li>• Create a full system backup</li>
+                            <li>• Export important data to CSV</li>
+                            <li>• Notify all users of the data reset</li>
+                            <li>• Document any custom configurations</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h5 className="font-medium mb-2 text-blue-700 dark:text-blue-300">Use Cases:</h5>
+                        <ul className="space-y-1 text-blue-600 dark:text-blue-400">
+                            <li>• Fixing corrupted data issues</li>
+                            <li>• Starting fresh with clean data</li>
+                            <li>• Preparing for data migration</li>
+                            <li>• Development/testing purposes</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="max-w-7xl mx-auto p-6">
             {/* Header */}
@@ -804,15 +957,20 @@ const DataManagement: React.FC = () => {
                     {[
                         { id: 'overview', label: 'Overview', icon: <BarChart3 size={16} /> },
                         { id: 'backup', label: 'Backup & Restore', icon: <HardDrive size={16} /> },
-                        { id: 'integrity', label: 'Data Integrity', icon: <Shield size={16} /> }
+                        { id: 'integrity', label: 'Data Integrity', icon: <Shield size={16} /> },
+                        { id: 'danger', label: 'Danger Zone', icon: <Trash2 size={16} /> }
                     ].map((tab) => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
                             className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${
                                 activeTab === tab.id
-                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                                    ? tab.id === 'danger' 
+                                        ? 'border-red-500 text-red-600 dark:text-red-400'
+                                        : 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : tab.id === 'danger'
+                                        ? 'border-transparent text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300'
+                                        : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
                             }`}
                         >
                             {tab.icon}
@@ -826,6 +984,7 @@ const DataManagement: React.FC = () => {
             {activeTab === 'overview' && renderOverview()}
             {activeTab === 'backup' && renderBackupRestore()}
             {activeTab === 'integrity' && renderIntegrityCheck()}
+            {activeTab === 'danger' && renderDangerZone()}
         </div>
     );
 };

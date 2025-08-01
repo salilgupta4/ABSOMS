@@ -33,6 +33,8 @@ const FirebaseMigration: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [exportData, setExportData] = useState<any>(null);
     const [exportInfo, setExportInfo] = useState<{ collections: string[]; totalDocuments: number } | null>(null);
+    const [credentials, setCredentials] = useState({ email: '', password: '' });
+    const [showCredentialsForm, setShowCredentialsForm] = useState(false);
 
     const AVAILABLE_COLLECTIONS = [
         { id: 'users', name: 'System Users', description: 'User accounts and permissions' },
@@ -179,7 +181,8 @@ const FirebaseMigration: React.FC = () => {
                 (progressUpdate) => {
                     setProgress(progressUpdate);
                 },
-                selectedCollections
+                selectedCollections,
+                credentials.email && credentials.password ? credentials : undefined
             );
 
             setResult(migrationResult);
@@ -536,6 +539,53 @@ const FirebaseMigration: React.FC = () => {
                         </div>
                     </>
                 )}
+            </div>
+
+            {/* Authentication for Old Firebase */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Shield size={20} />
+                    Authentication for Old Firebase
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                    To access data from your old Firebase project (oms1-438fd), please provide your credentials:
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            value={credentials.email}
+                            onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                            placeholder="Enter your email"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Password
+                        </label>
+                        <input
+                            type="password"
+                            value={credentials.password}
+                            onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                            placeholder="Enter your password"
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+                </div>
+                
+                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-amber-800 dark:text-amber-200">
+                            <strong>Security Note:</strong> Your credentials are only used to authenticate with the old Firebase project during migration. They are not stored or transmitted elsewhere.
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Migration Controls */}

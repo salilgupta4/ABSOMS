@@ -26,10 +26,35 @@ const StockHistory: React.FC = () => {
             getProduct(productId),
             getStockMovementsForProduct(productId)
         ]).then(([productData, movementsData]) => {
-            setProduct(productData || null);
+            console.log('Product lookup for ID:', productId);
+            console.log('Product data found:', productData);
+            console.log('Movements data:', movementsData);
+            
+            if (!productData && movementsData.length > 0) {
+                console.log('Product not found in catalog, using fallback from stock movements');
+                // Create a fallback product object using data from stock movements
+                const fallbackProduct = {
+                    id: productId,
+                    name: movementsData[0].productName || 'Unknown Product',
+                    description: 'Product information unavailable',
+                    hsnCode: '',
+                    unit: 'units',
+                    rate: 0
+                };
+                setProduct(fallbackProduct);
+            } else if (!productData) {
+                console.error('Product not found for ID:', productId, 'and no stock movements available');
+                setProduct(null);
+            } else {
+                setProduct(productData);
+            }
+            
             setMovements(movementsData);
             setLoading(false);
-        }).catch(() => setLoading(false));
+        }).catch((error) => {
+            console.error('Error loading stock history:', error);
+            setLoading(false);
+        });
 
     }, [productId]);
 
@@ -38,13 +63,38 @@ const StockHistory: React.FC = () => {
     }
 
     if (!product) {
-        return <Card title="Error"><p className="p-4">Product not found. <Link to="/inventory" className="text-primary">Go back to inventory</Link>.</p></Card>;
+        return (
+            <Card title="No Data Available">
+                <div className="p-4">
+                    <p className="mb-2">No product or stock movement data found for ID: {productId}.</p>
+                    <p className="text-sm text-slate-600 mb-4">
+                        This product doesn't exist in the catalog and has no stock movement history.
+                    </p>
+                    <div className="space-y-2">
+                        <Link to="/inventory" className="inline-block text-primary hover:underline">
+                            ← Go back to inventory
+                        </Link>
+                        <br />
+                        <Link to="/products" className="inline-block text-primary hover:underline">
+                            Check product catalog
+                        </Link>
+                    </div>
+                </div>
+            </Card>
+        );
     }
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h3 className="text-3xl font-bold text-slate-800">Stock History: {product.name}</h3>
+                <div>
+                    <h3 className="text-3xl font-bold text-slate-800">Stock History: {product.name}</h3>
+                    {product.rate === 0 && product.hsnCode === '' && (
+                        <p className="text-sm text-amber-600 mt-1">
+                            ⚠️ Product deleted from catalog - showing data from stock movements
+                        </p>
+                    )}
+                </div>
                 <div className="flex items-center space-x-2">
                     <Button to="/inventory" variant="secondary" icon={<ArrowLeft size={16}/>}>Back to Inventory</Button>
                 </div>

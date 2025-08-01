@@ -18,7 +18,7 @@ const InventoryList: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'productName', direction: 'ascending' });
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'currentStock', direction: 'descending' });
 
     const isViewer = user?.role === UserRole.Viewer;
 

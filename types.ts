@@ -113,6 +113,7 @@ export interface Quote {
   originalQuoteId?: string;
   linkedSalesOrderId?: string;
   additionalDescription?: string;
+  pointOfContactId?: string;
 }
 
 export interface SalesOrder {
@@ -137,6 +138,7 @@ export interface SalesOrder {
   total: number;
   terms: string[];
   status: DocumentStatus;
+  pointOfContactId?: string;
   // A record mapping UNIQUE LINE ITEM ID to its delivered quantity.
   deliveredQuantities: Record<string, number>; // lineItemId -> delivered qty
   additionalDescription?: string;
@@ -161,6 +163,7 @@ export interface DeliveryOrder {
   status: DocumentStatus;
   vehicleNumber?: string;
   additionalDescription?: string;
+  pointOfContactId?: string;
 }
 
 export interface PurchaseOrder {
@@ -178,6 +181,7 @@ export interface PurchaseOrder {
     total: number;
     status: DocumentStatus;
     additionalDescription?: string;
+    pointOfContactId?: string;
 }
 
 // --- INVENTORY TYPES ---
@@ -217,6 +221,47 @@ export interface User {
   role: UserRole;
   hasErpAccess: boolean;
   hasPayrollAccess: boolean;
+  hasProjectsAccess: boolean;
+  themePreferences?: UserThemePreferences;
+}
+
+export interface UserThemePreferences {
+  colors: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    success: string;
+    warning: string;
+    danger: string;
+    info: string;
+    background: string;
+    surface: string;
+    text: string;
+    textSecondary: string;
+    border: string;
+  };
+  typography: {
+    fontSize: 'xs' | 'sm' | 'base' | 'lg' | 'xl';
+    fontFamily: string;
+    lineHeight: number;
+    letterSpacing: number;
+  };
+  layout: {
+    borderRadius: 'none' | 'sm' | 'md' | 'lg' | 'xl';
+    spacing: 'tight' | 'normal' | 'relaxed';
+    sidebarWidth: string;
+    headerHeight: string;
+    animation: 'none' | 'reduced' | 'normal' | 'enhanced';
+  };
+  effects: {
+    crtMode: boolean;
+    scanlines: boolean;
+    glow: boolean;
+    flicker: boolean;
+    curvature: boolean;
+    themeClass: string;
+  };
+  theme: 'light' | 'dark';
 }
 
 export type UserFormData = Omit<User, 'id' | 'password'> & { id?: string; password?: string };
@@ -226,6 +271,15 @@ export interface BankDetails {
   branch: string;
   accountNumber: string;
   ifsc: string;
+}
+
+export interface EmailSettings {
+  emailjsServiceId: string;
+  emailjsTemplateId: string;
+  emailjsPublicKey: string;
+  fromEmail: string;
+  notificationEmail: string;
+  enableNotifications: boolean;
 }
 
 export interface CompanyDetails {
@@ -238,6 +292,18 @@ export interface CompanyDetails {
     bankAccount?: string; // For migration from old string format
     bankDetails?: BankDetails;
     deliveryAddress: string;
+    emailSettings?: EmailSettings;
+}
+
+export interface PointOfContact {
+    id: string;
+    name: string;
+    designation: string;
+    phone: string;
+    email: string;
+    isDefault: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface DocumentNumberingFormat {
@@ -253,7 +319,7 @@ export type DocumentNumberingSettings = {
 
 
 export interface PdfSettings {
-    template: 'classic' | 'adaptec' | 'modern' | 'elegant' | 'BandW';
+    template: 'classic' | 'adaptec' | 'modern' | 'elegant' | 'BandW' | 'BandW POI';
     accentColor: string;
     showGstin: boolean;
     showHsnCode: boolean;

@@ -4,11 +4,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 const { Link } = ReactRouterDOM;
 import Card from '@/components/ui/Card';
-import { DeliveryOrder, DocumentStatus, DocumentLineItem, SalesOrder, Address } from '@/types';
+import { DeliveryOrder, DocumentStatus, DocumentLineItem, SalesOrder, Address, PointOfContact } from '@/types';
 import { Eye, Trash2, Edit, ArrowUpDown } from 'lucide-react';
 import { getDocumentNumberingSettings } from '@/components/settings/DocumentNumbering';
+import { getPointsOfContact } from '@/services/pointOfContactService';
 import { db, Timestamp, DocumentSnapshot } from '@/services/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction } from '@/utils/permissions';
 import { collection, query, orderBy, getDocs, doc, getDoc, updateDoc, writeBatch, setDoc, deleteDoc, where } from 'firebase/firestore';
+import { getCompanyDetails } from '@/components/settings/CompanyDetails';
+import { getEmailService } from '@/services/emailService';
 
 // --- FIRESTORE DATA SERVICE ---
 const processDoc = (docSnap: DocumentSnapshot): DeliveryOrder => {
@@ -75,6 +80,7 @@ export const createDeliveryOrder = async (
         status: DocumentStatus.Dispatched,
         vehicleNumber,
         additionalDescription,
+        // pointOfContactId is not inherited from sales order - can be added independently
     };
 
     const batch = writeBatch(db);
@@ -107,6 +113,20 @@ export const createDeliveryOrder = async (
     
     const savedDoc = await getDeliveryOrder(newDORef.id);
     if (!savedDoc) throw new Error("Could not retrieve saved delivery order");
+    
+    // Send email notification
+    try {
+        const companyDetails = await getCompanyDetails();
+        if (companyDetails?.emailSettings?.enableNotifications) {
+            const emailService = getEmailService(companyDetails.emailSettings);
+            await emailService.sendDeliveryOrderNotification(savedDoc, companyDetails);
+            console.log('Delivery Order creation email notification sent successfully');
+        }
+    } catch (emailError) {
+        console.error('Failed to send Delivery Order creation email:', emailError);
+        // Don't throw error - don't block the user flow if email fails
+    }
+    
     return savedDoc;
 };
 
@@ -160,22 +180,35 @@ const statusColors: { [key in DocumentStatus]?: string } = {
     [DocumentStatus.Dispatched]: 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100',
 };
 
-type SortKey = 'deliveryNumber' | 'salesOrderNumber' | 'customerName' | 'deliveryDate';
+type SortKey = 'deliveryNumber' | 'salesOrderNumber' | 'customerName' | 'pointOfContact' | 'deliveryDate';
 
 const DeliveryOrderList: React.FC = () => {
+    const { user } = useAuth();
     const [orders, setOrders] = useState<DeliveryOrder[]>([]);
+    const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'deliveryDate', direction: 'descending' });
+    
+    const canEdit = canPerformAction(user, 'edit');
+    const canDelete = canPerformAction(user, 'delete');
 
 
-    const fetchOrders = () => {
+    const fetchOrders = async () => {
         setLoading(true);
-        getDeliveryOrders().then(data => {
-            setOrders(data);
+        try {
+            const [ordersData, contactsData] = await Promise.all([
+                getDeliveryOrders(),
+                getPointsOfContact()
+            ]);
+            setOrders(ordersData);
+            setPointsOfContact(contactsData);
             setLoading(false);
-        });
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -199,6 +232,12 @@ const DeliveryOrderList: React.FC = () => {
         setSortConfig({ key, direction });
     };
 
+    const getPointOfContactName = (pointOfContactId?: string) => {
+        if (!pointOfContactId) return 'Not Set';
+        const contact = pointsOfContact.find(c => c.id === pointOfContactId);
+        return contact ? contact.name : 'Unknown';
+    };
+
     const sortedAndFilteredOrders = useMemo(() => {
         let sortableItems = [...orders];
 
@@ -210,12 +249,20 @@ const DeliveryOrderList: React.FC = () => {
             sortableItems = sortableItems.filter(o =>
                 o.deliveryNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 o.salesOrderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                o.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+                o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                getPointOfContactName(o.pointOfContactId).toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
+                if (sortConfig.key === 'pointOfContact') {
+                    const aValue = getPointOfContactName(a.pointOfContactId);
+                    const bValue = getPointOfContactName(b.pointOfContactId);
+                    if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+                    if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+                    return 0;
+                }
                 const aValue = a[sortConfig.key];
                 const bValue = b[sortConfig.key];
                 if (sortConfig.key === 'deliveryDate') {
@@ -227,7 +274,7 @@ const DeliveryOrderList: React.FC = () => {
             });
         }
         return sortableItems;
-    }, [orders, searchTerm, sortConfig, statusFilter]);
+    }, [orders, pointsOfContact, searchTerm, sortConfig, statusFilter]);
 
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
         <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(sortKey)}>
@@ -267,6 +314,7 @@ const DeliveryOrderList: React.FC = () => {
                                 <SortableHeader sortKey="deliveryNumber">Delivery #</SortableHeader>
                                 <SortableHeader sortKey="salesOrderNumber">SO #</SortableHeader>
                                 <SortableHeader sortKey="customerName">Customer</SortableHeader>
+                                <SortableHeader sortKey="pointOfContact">Point of Contact</SortableHeader>
                                 <SortableHeader sortKey="deliveryDate">Date</SortableHeader>
                                 <th className="px-6 py-3">Status</th>
                                 <th className="px-6 py-3 text-right">Actions</th>
@@ -280,6 +328,11 @@ const DeliveryOrderList: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">{o.salesOrderNumber}</td>
                                     <td className="px-6 py-4">{o.customerName}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`text-sm ${!o.pointOfContactId ? 'text-slate-400 italic' : ''}`}>
+                                            {getPointOfContactName(o.pointOfContactId)}
+                                        </span>
+                                    </td>
                                     <td className="px-6 py-4">{new Date(o.deliveryDate).toLocaleDateString('en-GB')}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[o.status] || 'bg-gray-100'}`}>
@@ -289,15 +342,15 @@ const DeliveryOrderList: React.FC = () => {
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end space-x-2">
                                             <Link to={`/sales/deliveries/${o.id}/view`} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full"><Eye size={16} /></Link>
-                                            <Link to={`/sales/deliveries/${o.id}/edit`} className="p-2 text-primary hover:bg-primary-light rounded-full"><Edit size={16} /></Link>
-                                            <button onClick={() => handleDelete(o.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>
+                                            {canEdit && <Link to={`/sales/deliveries/${o.id}/edit`} className="p-2 text-primary hover:bg-primary-light rounded-full"><Edit size={16} /></Link>}
+                                            {canDelete && <button onClick={() => handleDelete(o.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
                             {sortedAndFilteredOrders.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
                                     No delivery orders found. Create one from a Sales Order.
                                     </td>
                                 </tr>

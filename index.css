@@ -4,10 +4,378 @@
 @tailwind utilities;
 
 :root {
+  /* Theme Colors - Default values, overridden by ThemeContext */
   --color-primary: #1e40af;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-light: #dbeafe;
+  --color-primary-hover: #1e40afE6;
   --color-secondary: #64748b;
-  --color-secondary-hover: #475569;
-  --color-secondary-light: #f1f5f9;
+  --color-secondary-hover: #64748bE6;
+  --color-accent: #8b5cf6;
+  --color-accent-hover: #8b5cf6E6;
+  --color-success: #10b981;
+  --color-success-hover: #10b981E6;
+  --color-warning: #f59e0b;
+  --color-warning-hover: #f59e0bE6;
+  --color-danger: #ef4444;
+  --color-danger-hover: #ef4444E6;
+  --color-info: #3b82f6;
+  --color-info-hover: #3b82f6E6;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-text: #1e293b;
+  --color-textSecondary: #64748b;
+  --color-border: #e2e8f0;
+  
+  /* Typography */
+  --font-family: Inter, system-ui, sans-serif;
+  --font-size-base: 1rem;
+  --line-height: 1.5;
+  --letter-spacing: 0px;
+  
+  /* Layout */
+  --border-radius: 0.375rem;
+  --spacing-base: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --sidebar-width: 12rem;
+  --header-height: 4rem;
+  --transition-duration: 0.2s;
+}
+
+/* Ensure SearchableSelect dropdown appears above all modals and containers */
+.searchable-dropdown {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
+/* Prevent body scroll when dropdowns are open in modals */
+.dropdown-open {
+  overflow: hidden;
+}
+
+/* Dynamic theme utilities */
+@layer utilities {
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  .bg-primary:hover {
+    background-color: var(--color-primary-hover);
+  }
+  .text-primary {
+    color: var(--color-primary);
+  }
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+  .ring-primary {
+    --tw-ring-color: var(--color-primary);
+  }
+  
+  .bg-secondary {
+    background-color: var(--color-secondary);
+  }
+  .text-secondary {
+    color: var(--color-secondary);
+  }
+  
+  .bg-accent {
+    background-color: var(--color-accent);
+  }
+  .text-accent {
+    color: var(--color-accent);
+  }
+  
+  .bg-success {
+    background-color: var(--color-success);
+  }
+  .text-success {
+    color: var(--color-success);
+  }
+  
+  .bg-warning {
+    background-color: var(--color-warning);
+  }
+  .text-warning {
+    color: var(--color-warning);
+  }
+  
+  .bg-danger {
+    background-color: var(--color-danger);
+  }
+  .text-danger {
+    color: var(--color-danger);
+  }
+  
+  .bg-info {
+    background-color: var(--color-info);
+  }
+  .text-info {
+    color: var(--color-info);
+  }
+}
+
+/* Apply dynamic typography */
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+  letter-spacing: var(--letter-spacing);
+}
+
+/* Global element styling with theme variables */
+* {
+  transition: all var(--transition-duration) ease-in-out;
+}
+
+/* Apply border radius to common elements */
+.rounded, .rounded-md {
+  border-radius: var(--border-radius) !important;
+}
+
+.rounded-lg {
+  border-radius: calc(var(--border-radius) * 1.5) !important;
+}
+
+.rounded-xl {
+  border-radius: calc(var(--border-radius) * 2) !important;
+}
+
+/* Apply spacing to common padding/margin classes */
+.p-2 {
+  padding: var(--spacing-base) !important;
+}
+
+.p-4 {
+  padding: var(--spacing-md) !important;
+}
+
+.p-6 {
+  padding: var(--spacing-lg) !important;
+}
+
+.m-2 {
+  margin: var(--spacing-base) !important;
+}
+
+.m-4 {
+  margin: var(--spacing-md) !important;
+}
+
+.m-6 {
+  margin: var(--spacing-lg) !important;
+}
+
+/* Spacing for specific directions */
+.px-4 {
+  padding-left: var(--spacing-md) !important;
+  padding-right: var(--spacing-md) !important;
+}
+
+.py-4 {
+  padding-top: var(--spacing-md) !important;
+  padding-bottom: var(--spacing-md) !important;
+}
+
+.px-6 {
+  padding-left: var(--spacing-lg) !important;
+  padding-right: var(--spacing-lg) !important;
+}
+
+.py-6 {
+  padding-top: var(--spacing-lg) !important;
+  padding-bottom: var(--spacing-lg) !important;
+}
+
+/* ==========================================
+   RETRO CRT TERMINAL EFFECTS SYSTEM
+   ========================================== */
+
+/* CRT Effect Variables */
+:root {
+  --crt-glow-color: var(--color-primary);
+  --crt-scanline-opacity: 0.1;
+  --crt-flicker-intensity: 0.02;
+}
+
+/* CRT Scanlines Effect */
+.crt-scanlines::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 1000;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, var(--crt-scanline-opacity)) 2px,
+    rgba(0, 0, 0, var(--crt-scanline-opacity)) 4px
+  );
+  animation: scanlines-move 0.1s linear infinite;
+}
+
+/* CRT Text Glow Effect */
+.crt-glow,
+.crt-theme .text-primary,
+.crt-theme h1,
+.crt-theme h2,
+.crt-theme h3,
+.crt-theme h4,
+.crt-theme .font-semibold {
+  text-shadow: 
+    0 0 3px var(--crt-glow-color),
+    0 0 10px var(--crt-glow-color),
+    0 0 20px var(--crt-glow-color),
+    0 0 30px var(--crt-glow-color);
+}
+
+/* CRT Screen Flicker Animation */
+.crt-flicker {
+  animation: flicker 0.15s infinite linear alternate;
+}
+
+@keyframes flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.98; }
+  100% { opacity: 0.96; }
+}
+
+@keyframes scanlines-move {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+
+/* CRT Screen Curvature Effect */
+.crt-curvature {
+  transform: perspective(1000px) rotateX(1deg);
+  border-radius: 20px 20px 25px 25px;
+  box-shadow: 
+    inset 0 0 100px rgba(0, 0, 0, 0.3),
+    0 0 50px rgba(0, 0, 0, 0.5);
+}
+
+/* CRT Theme Base Styling */
+.crt-theme {
+  font-family: 'Monaco', 'Courier New', monospace !important;
+  font-weight: normal;
+  letter-spacing: 0.05em;
+}
+
+/* Retro Button Styling for CRT Themes */
+.crt-theme .btn,
+.crt-theme button {
+  border: 2px solid currentColor;
+  background: rgba(0, 0, 0, 0.3);
+  text-transform: uppercase;
+  font-family: 'Monaco', 'Courier New', monospace;
+  letter-spacing: 0.1em;
+  transition: all 0.1s ease;
+}
+
+.crt-theme .btn:hover,
+.crt-theme button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 10px var(--crt-glow-color);
+}
+
+/* Classic Mac Theme Styling */
+.classic-mac-theme {
+  font-family: 'Chicago', 'Monaco', monospace !important;
+}
+
+.classic-mac-theme .btn,
+.classic-mac-theme button {
+  border: 2px outset #c0c0c0;
+  background: #c0c0c0;
+  color: black;
+  border-radius: 4px;
+  font-weight: bold;
+  text-transform: none;
+}
+
+.classic-mac-theme .btn:active,
+.classic-mac-theme button:active {
+  border: 2px inset #c0c0c0;
+  background: #a0a0a0;
+}
+
+/* Theme-specific color schemes */
+.green-terminal-theme {
+  --crt-glow-color: #00ff41;
+  background-color: #001100 !important;
+  color: #00ff41 !important;
+}
+
+.green-terminal-theme .bg-white,
+.green-terminal-theme .dark\\:bg-slate-800 {
+  background-color: #003300 !important;
+}
+
+.amber-terminal-theme {
+  --crt-glow-color: #ffb000;
+  background-color: #1a0f00 !important;
+  color: #ffb000 !important;
+}
+
+.amber-terminal-theme .bg-white,
+.amber-terminal-theme .dark\\:bg-slate-800 {
+  background-color: #2d1a00 !important;
+}
+
+.orange-terminal-theme {
+  --crt-glow-color: #ff8c00;
+  background-color: #180c00 !important;
+  color: #ff8c00 !important;
+}
+
+.orange-terminal-theme .bg-white,
+.orange-terminal-theme .dark\\:bg-slate-800 {
+  background-color: #2a1600 !important;
+}
+
+.purple-terminal-theme {
+  --crt-glow-color: #cc66ff;
+  background-color: #0f001a !important;
+  color: #cc66ff !important;
+}
+
+.purple-terminal-theme .bg-white,
+.purple-terminal-theme .dark\\:bg-slate-800 {
+  background-color: #1a002d !important;
+}
+
+.grey-terminal-theme {
+  --crt-glow-color: #e0e0e0;
+  background-color: #1a1a1a !important;
+  color: #e0e0e0 !important;
+}
+
+.grey-terminal-theme .bg-white,
+.grey-terminal-theme .dark\\:bg-slate-800 {
+  background-color: #2d2d2d !important;
+}
+
+.classic-mac-theme {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.classic-mac-theme .bg-slate-800,
+.classic-mac-theme .dark\\:bg-slate-800 {
+  background-color: #f0f0f0 !important;
+}
+
+/* Ensure retro themes override text colors */
+.green-terminal-theme *,
+.amber-terminal-theme *,
+.orange-terminal-theme *,
+.purple-terminal-theme *,
+.grey-terminal-theme * {
+  color: inherit !important;
+}
+
+.classic-mac-theme * {
+  color: inherit !important;
 }

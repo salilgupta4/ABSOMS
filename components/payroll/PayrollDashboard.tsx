@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Card from '@/components/ui/Card';
 import { Loader, Users, BadgeIndianRupee, Clock } from 'lucide-react';
 import { getPayrollRecords, getYearlyPayrollRecords, getAdvancePayments } from '@/services/payrollService';
@@ -6,7 +6,7 @@ import { PayrollRecord, AdvancePayment } from '@/types';
 import { Link } from 'react-router-dom';
 import Modal from '@/components/ui/Modal';
 
-const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string; loading: boolean, to?: string, onClick?: () => void }> = ({ title, value, icon, color, loading, to, onClick }) => {
+const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string; loading: boolean, to?: string, onClick?: () => void }> = React.memo(({ title, value, icon, color, loading, to, onClick }) => {
     const content = (
         <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md flex items-center transition-all duration-300 hover:shadow-lg hover:-translate-y-1 h-full cursor-pointer">
             <div className={`p-3 rounded-lg ${color}`}>
@@ -19,9 +19,9 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; 
         </div>
     );
     return to ? <Link to={to}>{content}</Link> : <button onClick={onClick} className="w-full text-left">{content}</button>;
-};
+});
 
-const BarChart: React.FC<{ data: { label: string, value: number }[], color: string }> = ({ data, color }) => {
+const BarChart: React.FC<{ data: { label: string, value: number }[], color: string }> = React.memo(({ data, color }) => {
     const maxValue = Math.max(...data.map(d => d.value), 1);
     return (
         <div className="flex justify-around items-end h-40 p-2 bg-slate-50 dark:bg-slate-800 rounded">
@@ -35,10 +35,10 @@ const BarChart: React.FC<{ data: { label: string, value: number }[], color: stri
             ))}
         </div>
     );
-};
+});
 
 
-const PayrollDashboard: React.FC = () => {
+const PayrollDashboard: React.FC = React.memo(() => {
     const [loading, setLoading] = useState(true);
     const [allRecords, setAllRecords] = useState<PayrollRecord[]>([]);
     const [allAdvances, setAllAdvances] = useState<AdvancePayment[]>([]);
@@ -48,24 +48,26 @@ const PayrollDashboard: React.FC = () => {
     const [isOvertimeModalOpen, setIsOvertimeModalOpen] = useState(false);
     const [isDeductionsModalOpen, setIsDeductionsModalOpen] = useState(false);
 
-    useEffect(() => {
-        const fetchDashboardData = async () => {
-            setLoading(true);
-            try {
-                const recordsPromise = viewMode === 'monthly'
-                    ? getPayrollRecords(selectedDate)
-                    : getYearlyPayrollRecords(selectedDate.slice(0, 4));
-                const [recordsData, advancesData] = await Promise.all([recordsPromise, getAdvancePayments()]);
-                setAllRecords(recordsData);
-                setAllAdvances(advancesData);
-            } catch (error) {
-                console.error("Failed to load payroll dashboard data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchDashboardData();
+    // Memoize fetch function
+    const fetchDashboardData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const recordsPromise = viewMode === 'monthly'
+                ? getPayrollRecords(selectedDate)
+                : getYearlyPayrollRecords(selectedDate.slice(0, 4));
+            const [recordsData, advancesData] = await Promise.all([recordsPromise, getAdvancePayments()]);
+            setAllRecords(recordsData);
+            setAllAdvances(advancesData);
+        } catch (error) {
+            console.error("Failed to load payroll dashboard data:", error);
+        } finally {
+            setLoading(false);
+        }
     }, [selectedDate, viewMode]);
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, [fetchDashboardData]);
 
     const dashboardData = useMemo(() => {
         const roundToNearestTen = (num: number) => Math.round(num / 10) * 10;
@@ -97,29 +99,38 @@ const PayrollDashboard: React.FC = () => {
         return { stats, overtimeByCategory, deductionsByMonth, highestAdvanceGiven, highestDeductionMade, formatCurrency };
     }, [allRecords, allAdvances]);
 
+    // Memoize modal handlers
+    const handleOvertimeModalToggle = useCallback(() => {
+        setIsOvertimeModalOpen(prev => !prev);
+    }, []);
+
+    const handleDeductionsModalToggle = useCallback(() => {
+        setIsDeductionsModalOpen(prev => !prev);
+    }, []);
+
     return (
         <div className="space-y-6">
             <Card>
                 <div className="flex items-center space-x-4">
                     <label className="font-medium">View Mode:</label>
-                    <select value={viewMode} onChange={e => setViewMode(e.target.value as any)} className="p-2 border rounded bg-white dark:bg-slate-700">
+                    <select value={viewMode} onChange={e => setViewMode(e.target.value as any)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100">
                         <option value="monthly">Monthly</option>
                         <option value="yearly">Yearly</option>
                     </select>
-                    <input type={viewMode} value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="p-2 border rounded bg-white dark:bg-slate-700" />
+                    <input type={viewMode} value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
                 </div>
             </Card>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                 <StatCard title="Total Records" to="/payroll/reports" value={String(dashboardData.stats.totalRecords)} icon={<Users className="text-blue-500" />} color="bg-blue-100 dark:bg-blue-900/30" loading={loading} />
                 <StatCard title="Total Gross Pay" to="/payroll/reports" value={dashboardData.formatCurrency(dashboardData.stats.totalGross)} icon={<BadgeIndianRupee className="text-green-500" />} color="bg-green-100 dark:bg-green-900/30" loading={loading} />
-                <StatCard title="Total Deductions" onClick={() => setIsDeductionsModalOpen(true)} value={dashboardData.formatCurrency(dashboardData.stats.totalDeductions)} icon={<BadgeIndianRupee className="text-amber-500" />} color="bg-amber-100 dark:bg-amber-900/30" loading={loading} />
+                <StatCard title="Total Deductions" onClick={handleDeductionsModalToggle} value={dashboardData.formatCurrency(dashboardData.stats.totalDeductions)} icon={<BadgeIndianRupee className="text-amber-500" />} color="bg-amber-100 dark:bg-amber-900/30" loading={loading} />
                 <StatCard title="Total Net Pay" to="/payroll/reports" value={dashboardData.formatCurrency(dashboardData.stats.totalNet)} icon={<BadgeIndianRupee className="text-purple-500" />} color="bg-purple-100 dark:bg-purple-900/30" loading={loading} />
-                <StatCard title="Total Overtime" onClick={() => setIsOvertimeModalOpen(true)} value={dashboardData.formatCurrency(dashboardData.stats.totalOvertimeAmount)} icon={<Clock className="text-cyan-500" />} color="bg-cyan-100 dark:bg-cyan-900/30" loading={loading} />
-                <StatCard title="OT Hours" onClick={() => setIsOvertimeModalOpen(true)} value={`${dashboardData.stats.totalOtHours} hrs`} icon={<Clock className="text-red-500" />} color="bg-red-100 dark:bg-red-900/30" loading={loading} />
+                <StatCard title="Total Overtime" onClick={handleOvertimeModalToggle} value={dashboardData.formatCurrency(dashboardData.stats.totalOvertimeAmount)} icon={<Clock className="text-cyan-500" />} color="bg-cyan-100 dark:bg-cyan-900/30" loading={loading} />
+                <StatCard title="OT Hours" onClick={handleOvertimeModalToggle} value={`${dashboardData.stats.totalOtHours} hrs`} icon={<Clock className="text-red-500" />} color="bg-red-100 dark:bg-red-900/30" loading={loading} />
             </div>
 
-             <Modal isOpen={isOvertimeModalOpen} onClose={() => setIsOvertimeModalOpen(false)} title="Overtime Insights">
+             <Modal isOpen={isOvertimeModalOpen} onClose={handleOvertimeModalToggle} title="Overtime Insights">
                 <div className="p-6">
                     <h3 className="font-semibold mb-2">Overtime Cost by Category</h3>
                     <BarChart data={Object.entries(dashboardData.overtimeByCategory).map(([label, value]) => ({ label, value }))} color="#06b6d4" />
@@ -128,7 +139,7 @@ const PayrollDashboard: React.FC = () => {
                     </ul>
                 </div>
             </Modal>
-             <Modal isOpen={isDeductionsModalOpen} onClose={() => setIsDeductionsModalOpen(false)} title="Deductions Insights">
+             <Modal isOpen={isDeductionsModalOpen} onClose={handleDeductionsModalToggle} title="Deductions Insights">
                 <div className="p-6">
                     <h3 className="font-semibold mb-2">Deductions Trend</h3>
                     <BarChart data={Object.entries(dashboardData.deductionsByMonth).map(([label, value]) => ({ label, value }))} color="#f59e0b" />
@@ -146,6 +157,6 @@ const PayrollDashboard: React.FC = () => {
             </Modal>
         </div>
     );
-};
+});
 
 export default PayrollDashboard;

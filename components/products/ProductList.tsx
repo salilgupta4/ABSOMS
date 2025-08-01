@@ -8,6 +8,10 @@ import Button from '../ui/Button';
 import { Plus, Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import { Product, ProductFormData, UserRole } from '../../types';
 import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction } from '@/utils/permissions';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useSearchableList } from '@/hooks/useSearchableList';
+import SearchableInput from '@/components/ui/SearchableInput';
 import { db } from '@/services/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 
@@ -50,6 +54,33 @@ const ProductList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'name', direction: 'ascending' });
+    
+    const canCreate = canPerformAction(user, 'create');
+    const canEdit = canPerformAction(user, 'edit');
+    const canDelete = canPerformAction(user, 'delete');
+    
+    const { searchInputRef } = useKeyboardShortcuts({
+        newItemPath: '/products/new',
+        canCreate,
+        searchTerm,
+        setSearchTerm
+    });
+    
+    const {
+        filteredItems: searchResults,
+        selectedIndex,
+        showResults,
+        handleInputFocus,
+        handleInputChange,
+        selectItem
+    } = useSearchableList({
+        items: products,
+        searchTerm,
+        setSearchTerm,
+        getItemId: (product) => product.id,
+        getItemUrl: (product) => `/products/${product.id}/edit`,
+        searchFields: ['name', 'hsnCode']
+    });
 
     const isViewer = user?.role === UserRole.Viewer;
 
@@ -122,12 +153,28 @@ const ProductList: React.FC = () => {
             bodyClassName=""
         >
              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                <input
-                    type="text"
-                    placeholder="Filter by name..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full md:w-1/3 px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm"
+                <SearchableInput
+                    searchInputRef={searchInputRef}
+                    searchTerm={searchTerm}
+                    placeholder="Search products... (Press '/' to focus, ↑↓ to navigate, ↵ to select)"
+                    filteredItems={searchResults}
+                    selectedIndex={selectedIndex}
+                    showResults={showResults}
+                    onInputChange={handleInputChange}
+                    onInputFocus={handleInputFocus}
+                    onItemSelect={selectItem}
+                    className="w-full md:w-1/3"
+                    renderItem={(product, index, isSelected) => (
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <div className="font-medium">{product.name}</div>
+                                <div className="text-xs opacity-75">HSN: {product.hsnCode}</div>
+                            </div>
+                            <div className="text-xs opacity-60">
+                                ₹{product.rate.toLocaleString()}/{product.unit}
+                            </div>
+                        </div>
+                    )}
                 />
             </div>
             {loading ? (

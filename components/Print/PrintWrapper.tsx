@@ -154,7 +154,7 @@ const BandWTemplate: React.FC<PrintWrapperProps> = ({ children, companyDetails, 
                     <img src={settings.companyLogo} alt="Logo" style={{ width: `${settings.logoSize}px`, height: 'auto', maxHeight: '60px', objectFit: 'contain' }} />
                 ) : (
                     <div className="w-40">
-                        <p className="text-3xl font-bold">Your Company</p>
+                        <p className="text-3xl font-bold">ABSPL</p>
                     </div>
                 )}
                 <div className="text-right text-xs space-y-1">
@@ -214,6 +214,8 @@ const PrintWrapper: React.FC<PrintWrapperProps> = (props) => {
       case 'elegant':
         return <ElegantTemplate {...props} />;
        case 'BandW':
+        return <BandWTemplate {...props} />;
+       case 'BandW POI':
         return <BandWTemplate {...props} />;
       case 'classic':
       default:

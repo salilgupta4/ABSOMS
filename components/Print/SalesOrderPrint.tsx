@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { SalesOrder, PdfSettings, CompanyDetails } from '../../types';
+import { SalesOrder, PdfSettings, CompanyDetails, PointOfContact } from '../../types';
 
 interface SalesOrderPrintProps {
     order: SalesOrder;
@@ -8,28 +8,34 @@ interface SalesOrderPrintProps {
     companyDetails: CompanyDetails;
     isLastPage: boolean;
     itemStartIndex: number;
+    pointOfContact?: PointOfContact;
 }
 
-const AddressBlock: React.FC<{title: string, children: React.ReactNode}> = ({ title, children }) => (
+const AddressBlock: React.FC<{title: string, children: React.ReactNode, isBandW?: boolean}> = ({ title, children, isBandW }) => (
     <div>
-        <h3 className="text-[10px] font-bold text-gray-700 uppercase tracking-wide border-b border-gray-400 pb-1 mb-1">{title}</h3>
-        <div className="text-[9px] space-y-0.5 text-gray-800">
+        <h3 className={`text-[10px] font-bold uppercase tracking-wide border-b pb-0.5 mb-0.5 ${
+            isBandW ? 'text-black border-black' : 'text-gray-700 border-gray-400'
+        }`}>{title}</h3>
+        <div className={`text-[9px] space-y-0 leading-tight ${
+            isBandW ? 'text-black' : 'text-gray-800'
+        }`}>
             {children}
         </div>
     </div>
 );
 
-const MetaBlock: React.FC<{label: string, value: React.ReactNode}> = ({label, value}) => (
+const MetaBlock: React.FC<{label: string, value: React.ReactNode, isBandW?: boolean}> = ({label, value, isBandW}) => (
     <div className="text-[10px] text-center">
-        <p className="font-bold text-gray-600">{label}</p>
-        <p className="text-gray-800">{value}</p>
+        <p className={`font-bold ${isBandW ? 'text-black' : 'text-gray-600'}`}>{label}</p>
+        <p className={isBandW ? 'text-black' : 'text-gray-800'}>{value}</p>
     </div>
 )
 
-const SalesOrderPrint: React.FC<SalesOrderPrintProps> = ({ order, settings, companyDetails, isLastPage, itemStartIndex }) => {
+const SalesOrderPrint: React.FC<SalesOrderPrintProps> = ({ order, settings, companyDetails, isLastPage, itemStartIndex, pointOfContact }) => {
     if (!order) return null;
     const { billingAddress, shippingAddress } = order;
     const isBandW = settings.template === 'BandW';
+    const isBandWPOI = settings.template === 'BandW POI';
 
     const formatAddress = (addr: typeof billingAddress) => (
         <>
@@ -42,109 +48,135 @@ const SalesOrderPrint: React.FC<SalesOrderPrintProps> = ({ order, settings, comp
 
     return (
         <div className="text-sm">
-            {/* Header */}
-            <h1 className="text-2xl font-bold text-center uppercase tracking-wider mb-2">Sales Order</h1>
-
-            <div className="flex justify-between items-start text-center mb-3 p-2 border border-black w-full">
-                <MetaBlock label="SO No." value={order.orderNumber} />
-                <MetaBlock label="Date" value={new Date(order.orderDate).toLocaleDateString('en-GB')} />
-                <MetaBlock label="Status" value={order.status} />
-                <MetaBlock label="Client PO No." value={order.clientPoNumber || 'N/A'} />
-                <MetaBlock label="Ref" value={order.quoteNumber} />
+            {/* Header outside metadata box */}
+            <h1 className={`text-2xl font-bold text-center uppercase tracking-wider mb-3 ${
+                (isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'
+            }`}>Sales Order</h1>
+            
+            {/* Metadata box */}
+            <div className={`flex justify-between items-center text-center mb-2 p-2 border w-full ${
+                (isBandW || isBandWPOI) ? 'border-black' : 'border-gray-400'
+            }`}>
+                <MetaBlock label="SO No." value={order.orderNumber} isBandW={isBandW || isBandWPOI} />
+                <MetaBlock label="Date" value={new Date(order.orderDate).toLocaleDateString('en-GB')} isBandW={isBandW || isBandWPOI} />
+                <MetaBlock label="Status" value={order.status} isBandW={isBandW || isBandWPOI} />
+                <MetaBlock label="Client PO No." value={order.clientPoNumber || 'N/A'} isBandW={isBandW || isBandWPOI} />
+                <MetaBlock label="Ref" value={order.quoteNumber} isBandW={isBandW || isBandWPOI} />
             </div>
 
             {/* Addresses */}
-            <div className="grid grid-cols-3 gap-4 mb-4 text-xs">
-                <AddressBlock title="Bill To">
+            <div className={`grid ${isBandWPOI ? 'grid-cols-4' : 'grid-cols-3'} gap-3 mb-3 text-xs`}>
+                <AddressBlock title="Bill To" isBandW={isBandW || isBandWPOI}>
                     {formatAddress(billingAddress)}
                     <p className="mt-1"><strong>GSTIN:</strong> {order.customerGstin}</p>
                 </AddressBlock>
-                <AddressBlock title="Ship To">
+                <AddressBlock title="Ship To" isBandW={isBandW || isBandWPOI}>
                     {formatAddress(shippingAddress)}
                 </AddressBlock>
-                <AddressBlock title="Contact Person">
+                <AddressBlock title="Contact Person" isBandW={isBandW || isBandWPOI}>
                     <p className="font-bold">{order.contactName}</p>
                     <p>Phone: {order.contactPhone}</p>
                     <p>Email: {order.contactEmail}</p>
                 </AddressBlock>
+                {isBandWPOI && pointOfContact && (
+                    <AddressBlock title="Our Point of Contact" isBandW={isBandW || isBandWPOI}>
+                        <p className="font-bold">{pointOfContact.name}</p>
+                        {pointOfContact.designation && <p>{pointOfContact.designation}</p>}
+                        <p>Phone: {pointOfContact.phone}</p>
+                        <p>Email: {pointOfContact.email}</p>
+                    </AddressBlock>
+                )}
             </div>
 
             {/* Line Items */}
             <table className="w-full text-[9px]">
-                <thead className={isBandW ? "bg-gray-200 text-black" : "bg-black text-white"}>
+                <thead className={(isBandW || isBandWPOI) ? 'bg-gray-200 text-black' : 'bg-black text-white'}>
                     <tr>
-                        <th className="py-2 px-1 text-center font-semibold w-8 align-middle">Sl.</th>
-                        <th className="py-2 px-1 text-left font-semibold align-middle w-auto">Description</th>
-                        {settings.showHsnCode && <th className="py-2 px-1 text-center font-semibold w-16 align-middle">HSN</th>}
-                        <th className="py-2 px-1 text-center font-semibold w-12 align-middle">Qty</th>
-                        <th className="py-2 px-1 text-center font-semibold w-12 align-middle">Unit</th>
-                        <th className="py-2 px-1 text-right font-semibold w-20 align-middle">Rate</th>
-                        <th className="py-2 px-1 text-right font-semibold w-24 align-middle">Amount</th>
+                        <th className="py-1 px-1 text-center font-semibold w-8 align-middle">Sl.</th>
+                        <th className="py-1 px-1 text-left font-semibold align-middle w-auto">Description</th>
+                        {settings.showHsnCode && <th className="py-1 px-1 text-center font-semibold w-16 align-middle">HSN</th>}
+                        <th className="py-1 px-1 text-center font-semibold w-12 align-middle">Qty</th>
+                        <th className="py-1 px-1 text-center font-semibold w-12 align-middle">Unit</th>
+                        <th className="py-1 px-1 text-right font-semibold w-20 align-middle">Rate</th>
+                        <th className="py-1 px-1 text-right font-semibold w-24 align-middle">Amount</th>
                     </tr>
                 </thead>
                 <tbody>
                     {order.lineItems.map((item, index) => (
-                        <tr key={item.id} className="border-b border-gray-300">
-                            <td className="py-1 px-1 align-top text-center">{itemStartIndex + index + 1}</td>
-                            <td className="py-1 px-1 align-top">
-                                <p className="font-semibold text-gray-800">{item.productName}</p>
-                                <p className="text-gray-600 whitespace-pre-wrap mt-0.5">{item.description}</p>
+                        <tr key={item.id} className={`border-b ${(isBandW || isBandWPOI) ? 'border-black' : 'border-gray-300'}`}>
+                            <td className={`py-2 px-1 align-top text-center ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>{itemStartIndex + index + 1}</td>
+                            <td className="py-2 px-1 align-top">
+                                <p className={`font-semibold leading-tight ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>{item.productName}</p>
+                                <p className={`whitespace-pre-wrap leading-tight -mt-0.5 ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-600'}`}>{item.description}</p>
                             </td>
-                            {settings.showHsnCode && <td className="py-1 px-1 text-center align-top">{item.hsnCode}</td>}
-                            <td className="py-1 px-1 text-center align-top">{item.quantity}</td>
-                            <td className="py-1 px-1 text-center align-top">{item.unit}</td>
-                            <td className="py-1 px-1 text-right align-top">{item.unitPrice.toFixed(2)}</td>
-                            <td className="py-1 px-1 text-right align-top font-semibold">{item.total.toFixed(2)}</td>
+                            {settings.showHsnCode && <td className={`py-2 px-1 text-center align-top ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>{item.hsnCode}</td>}
+                            <td className={`py-2 px-1 text-center align-top ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>{item.quantity}</td>
+                            <td className={`py-2 px-1 text-center align-top ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>{item.unit}</td>
+                            <td className={`py-2 px-1 text-right align-top ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>{item.unitPrice.toFixed(2)}</td>
+                            <td className={`py-2 px-1 text-right align-top font-semibold ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>{item.total.toFixed(2)}</td>
                         </tr>
                     ))}
                 </tbody>
             </table>
             
             {!isLastPage && (
-                <div className="text-center italic text-gray-500 pt-2">Continued on next page...</div>
+                <div className={`text-center italic pt-2 ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-500'}`}>Continued on next page...</div>
             )}
 
             {isLastPage && (
-                <div className="mt-2">
-                    {/* Totals */}
+                <div className="mt-2 relative">
+                    {/* Terms - positioned independently on the left */}
+                    <div className="absolute left-0 top-0 w-1/2 pr-4 text-xs">
+                        {order.terms && order.terms.length > 0 &&
+                            <div>
+                                <h4 className={`font-semibold mb-1 ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-700'}`}>Terms & Conditions:</h4>
+                                <ul className={`list-disc list-inside space-y-1 text-[9px] ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-600'}`}>
+                                    {order.terms.map((term, index) => (
+                                        <li key={index}>{term}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                    
+                    {/* Totals section - fixed position on the right */}
                     <div className="flex justify-end">
                         <div className="w-2/5 text-xs">
-                            <div className="flex justify-between py-1"><span className="text-gray-600">Subtotal</span><span className="font-semibold text-right">₹{order.subTotal.toFixed(2)}</span></div>
-                            <div className="flex justify-between py-1"><span className="text-gray-600">GST ({order.lineItems[0]?.taxRate || 18}%)</span><span className="font-semibold text-right">₹{order.gstTotal.toFixed(2)}</span></div>
-                            <div className="flex justify-between py-2 mt-1 border-t-2 border-black"><span className="font-bold text-base">Grand Total</span><span className="font-bold text-base text-right">₹{order.total.toFixed(2)}</span></div>
+                            {/* Subtotal */}
+                            <div className="flex justify-between py-1">
+                                <span className={`${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-600'}`}>Subtotal</span>
+                                <span className={`font-semibold text-right ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>₹{order.subTotal.toFixed(2)}</span>
+                            </div>
+                            {/* GST */}
+                            <div className="flex justify-between py-1">
+                                <span className={`${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-600'}`}>GST ({order.lineItems[0]?.taxRate || 18}%)</span>
+                                <span className={`font-semibold text-right ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>₹{order.gstTotal.toFixed(2)}</span>
+                            </div>
+                            {/* Grand Total */}
+                            <div className="flex justify-between py-2 mt-1 border-t-2 border-black">
+                                <span className={`font-bold text-base ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>Grand Total</span>
+                                <span className={`font-bold text-base text-right ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-800'}`}>₹{order.total.toFixed(2)}</span>
+                            </div>
                         </div>
                     </div>
-                    {/* Footer Content: Terms and Signature */}
-                    <div className="flex justify-between items-end pt-4 text-xs">
-                         <div className="w-1/2 pr-4">
-                            {order.terms && order.terms.length > 0 &&
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-gray-700 mb-1">Terms & Conditions:</h4>
-                                    <ul className="list-disc list-inside text-gray-600 space-y-1 text-[9px]">
-                                        {order.terms.map((term, index) => (
-                                            <li key={index}>{term}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            }
-                        </div>
-                         <div className="w-1/2 flex justify-end">
-                             <div className="w-48 text-center">
-                                <div className="h-16 flex justify-center items-center">
-                                    {settings.signatureImage && (
-                                        <img
-                                            src={settings.signatureImage}
-                                            alt="Signature"
-                                            className="max-h-full"
-                                            style={{ height: `${settings.signatureSize}px` }}
-                                        />
-                                    )}
-                                </div>
-                                <div className="pt-1 text-sm">
-                                    Authorized By
-                                </div>
-                                <p className="text-[10px]">For {companyDetails.name}</p>
+                    
+                    {/* Signature - moved higher with less padding */}
+                    <div className="flex justify-end pt-2 text-xs">
+                        <div className="w-48 text-center">
+                            <div className="h-16 flex justify-center items-center">
+                                {settings.signatureImage && (
+                                    <img
+                                        src={settings.signatureImage}
+                                        alt="Signature"
+                                        className="max-h-full"
+                                        style={{ height: `${settings.signatureSize}px` }}
+                                    />
+                                )}
                             </div>
+                            <div className={`pt-1 text-sm ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-700'}`}>
+                                Authorized By
+                            </div>
+                            <p className={`text-[10px] ${(isBandW || isBandWPOI) ? 'text-black' : 'text-gray-600'}`}>For {companyDetails.name}</p>
                         </div>
                     </div>
                 </div>

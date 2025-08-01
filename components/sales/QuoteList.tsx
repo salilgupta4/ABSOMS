@@ -6,10 +6,16 @@ const { Link, useNavigate, useLocation } = ReactRouterDOM;
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { Plus, FileUp, Edit, Trash2, Eye, ArrowUpDown } from 'lucide-react';
-import { Quote, DocumentStatus } from '@/types';
+import { Quote, DocumentStatus, PointOfContact } from '@/types';
 import { db, Timestamp, DocumentSnapshot } from '@/services/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction } from '@/utils/permissions';
 import { getDocumentNumberingSettings } from '../settings/DocumentNumbering';
+import { getPointsOfContact } from '@/services/pointOfContactService';
 import { collection, query, orderBy, getDocs, doc, getDoc, updateDoc, writeBatch, addDoc, deleteDoc } from 'firebase/firestore';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useSearchableList } from '@/hooks/useSearchableList';
+import SearchableInput from '@/components/ui/SearchableInput';
 
 
 // --- FIRESTORE DATA SERVICE ---
@@ -105,14 +111,16 @@ const statusColors: { [key in DocumentStatus]?: string } = {
     [DocumentStatus.Superseded]: 'bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 line-through',
 };
 
-type SortKey = 'quoteNumber' | 'customerName' | 'issueDate' | 'total' | 'status';
+type SortKey = 'quoteNumber' | 'customerName' | 'pointOfContact' | 'issueDate' | 'total' | 'status';
 
 const isClosedStatus = (status: DocumentStatus) => 
     [DocumentStatus.Closed, DocumentStatus.Rejected, DocumentStatus.Superseded].includes(status);
 
 
 const QuoteList: React.FC = () => {
+    const { user } = useAuth();
     const [quotes, setQuotes] = useState<Quote[]>([]);
+    const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -121,15 +129,47 @@ const QuoteList: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const fetchQuotes = () => {
+    const canCreate = canPerformAction(user, 'create');
+    const canEdit = canPerformAction(user, 'edit');
+    const canDelete = canPerformAction(user, 'delete');
+    
+    const { searchInputRef } = useKeyboardShortcuts({
+        newItemPath: '/sales/quotes/new',
+        canCreate,
+        searchTerm,
+        setSearchTerm
+    });
+    
+    const {
+        filteredItems: searchResults,
+        selectedIndex,
+        showResults,
+        handleInputFocus,
+        handleInputChange,
+        selectItem
+    } = useSearchableList({
+        items: quotes,
+        searchTerm,
+        setSearchTerm,
+        getItemId: (quote) => quote.id,
+        getItemUrl: (quote) => `/sales/quotes/${quote.id}/view`,
+        searchFields: ['quoteNumber', 'customerName']
+    });
+
+    const fetchQuotes = async () => {
         setLoading(true);
-        getQuotes().then(data => {
-            setQuotes(data);
+        try {
+            const [quotesData, contactsData] = await Promise.all([
+                getQuotes(),
+                getPointsOfContact()
+            ]);
+            setQuotes(quotesData);
+            setPointsOfContact(contactsData);
             setLoading(false);
-        }).catch(err => {
+        } catch (err: any) {
             alert(`Error fetching quotes: ${err.message}`);
             setLoading(false);
-        });
+        }
     };
 
     useEffect(() => {
@@ -175,6 +215,12 @@ const QuoteList: React.FC = () => {
         setSortConfig({ key, direction });
     };
 
+    const getPointOfContactName = (pointOfContactId?: string) => {
+        if (!pointOfContactId) return 'Not Set';
+        const contact = pointsOfContact.find(c => c.id === pointOfContactId);
+        return contact ? contact.name : 'Unknown';
+    };
+
     const sortedAndFilteredQuotes = useMemo(() => {
         let sortableItems = [...quotes];
 
@@ -191,7 +237,8 @@ const QuoteList: React.FC = () => {
         if (searchTerm) {
             sortableItems = sortableItems.filter(q =>
                 q.quoteNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                q.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+                q.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                getPointOfContactName(q.pointOfContactId).toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
@@ -203,27 +250,34 @@ const QuoteList: React.FC = () => {
             }
 
             if (sortConfig !== null) {
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
-                
-                if (sortConfig.key === 'issueDate') {
-                   return sortConfig.direction === 'ascending' ? new Date(aValue).getTime() - new Date(bValue).getTime() : new Date(bValue).getTime() - new Date(aValue).getTime();
-                }
+                if (sortConfig.key === 'pointOfContact') {
+                    const aValue = getPointOfContactName(a.pointOfContactId);
+                    const bValue = getPointOfContactName(b.pointOfContactId);
+                    if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+                    if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+                } else {
+                    const aValue = a[sortConfig.key];
+                    const bValue = b[sortConfig.key];
+                    
+                    if (sortConfig.key === 'issueDate') {
+                       return sortConfig.direction === 'ascending' ? new Date(aValue).getTime() - new Date(bValue).getTime() : new Date(bValue).getTime() - new Date(aValue).getTime();
+                    }
 
-                if (aValue < bValue) {
-                    return sortConfig.direction === 'ascending' ? -1 : 1;
-                }
-                if (aValue > bValue) {
-                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                    if (aValue < bValue) {
+                        return sortConfig.direction === 'ascending' ? -1 : 1;
+                    }
+                    if (aValue > bValue) {
+                        return sortConfig.direction === 'ascending' ? 1 : -1;
+                    }
                 }
             }
             return 0;
         });
         return sortableItems;
-    }, [quotes, searchTerm, sortConfig, statusFilter]);
+    }, [quotes, pointsOfContact, searchTerm, sortConfig, statusFilter]);
 
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
-        <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(sortKey)}>
+        <th scope="col" className="px-4 py-2 cursor-pointer" onClick={() => requestSort(sortKey)}>
             <div className="flex items-center">
                 {children}
                 <ArrowUpDown size={14} className="ml-2 opacity-50"/>
@@ -232,19 +286,35 @@ const QuoteList: React.FC = () => {
     );
 
     return (
-        <Card title="Quotes" actions={<Button to="/sales/quotes/new" icon={<Plus size={16} />}>New Quote</Button>} bodyClassName="">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-4 items-center">
-                <input
-                    type="text"
-                    placeholder="Filter by quote # or customer..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full sm:w-1/3 px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm"
+        <Card title="Quotes" actions={canCreate && <Button to="/sales/quotes/new" icon={<Plus size={16} />} shortcut="Ctrl+N">New Quote</Button>} bodyClassName="">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-3 items-center">
+                <SearchableInput
+                    searchInputRef={searchInputRef}
+                    searchTerm={searchTerm}
+                    placeholder="Search quotes... (Press '/' to focus, ↑↓ to navigate, ↵ to select)"
+                    filteredItems={searchResults}
+                    selectedIndex={selectedIndex}
+                    showResults={showResults}
+                    onInputChange={handleInputChange}
+                    onInputFocus={handleInputFocus}
+                    onItemSelect={selectItem}
+                    className="w-full sm:w-1/3"
+                    renderItem={(quote, index, isSelected) => (
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <div className="font-medium">{quote.quoteNumber}</div>
+                                <div className="text-xs opacity-75">{quote.customerName}</div>
+                            </div>
+                            <div className="text-xs opacity-60">
+                                ₹{quote.total.toLocaleString()}
+                            </div>
+                        </div>
+                    )}
                 />
                 <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full sm:w-auto px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
+                    className="w-full sm:w-auto px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
                 >
                     <option value="all">All Statuses</option>
                     <option value="open">All Open</option>
@@ -258,46 +328,52 @@ const QuoteList: React.FC = () => {
                 </select>
             </div>
             {loading ? (
-                <p className="p-4 text-center">Loading quotes...</p>
+                <p className="p-3 text-center text-sm">Loading quotes...</p>
             ) : (
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
+                    <table className="w-full text-xs text-left text-slate-500 dark:text-slate-400">
                         <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-700">
                             <tr>
                                 <SortableHeader sortKey="quoteNumber">Quote #</SortableHeader>
                                 <SortableHeader sortKey="customerName">Customer</SortableHeader>
+                                <SortableHeader sortKey="pointOfContact">Point of Contact</SortableHeader>
                                 <SortableHeader sortKey="issueDate">Date</SortableHeader>
                                 <SortableHeader sortKey="total">Total</SortableHeader>
                                 <SortableHeader sortKey="status">Status</SortableHeader>
-                                <th className="px-6 py-3 text-right">Actions</th>
+                                <th className="px-4 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {sortedAndFilteredQuotes.map(q => (
                                 <tr key={q.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600">
-                                    <td className="px-6 py-4 font-bold">
+                                    <td className="px-4 py-2 font-bold">
                                         <Link to={`/sales/quotes/${q.id}/view`} className="text-primary hover:underline">
                                             {q.quoteNumber}{q.revisionNumber ? `-Rev${q.revisionNumber}` : ''}
                                         </Link>
                                     </td>
-                                    <td className="px-6 py-4">{q.customerName}</td>
-                                    <td className="px-6 py-4">{new Date(q.issueDate).toLocaleDateString('en-GB')}</td>
-                                    <td className="px-6 py-4">₹{q.total.toFixed(2)}</td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-4 py-2">{q.customerName}</td>
+                                    <td className="px-4 py-2">
+                                        <span className={`text-xs ${!q.pointOfContactId ? 'text-slate-400 italic' : ''}`}>
+                                            {getPointOfContactName(q.pointOfContactId)}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2">{new Date(q.issueDate).toLocaleDateString('en-GB')}</td>
+                                    <td className="px-4 py-2 font-medium">₹{q.total.toLocaleString()}</td>
+                                    <td className="px-4 py-2">
                                         <select
                                             value={q.status}
                                             onChange={(e) => handleStatusChange(q.id, e.target.value as DocumentStatus)}
                                             disabled={updatingStatusId === q.id || isClosedStatus(q.status)}
-                                            className={`w-32 p-1 text-xs font-medium rounded-md border-0 focus:ring-2 focus:ring-primary ${statusColors[q.status]}`}
+                                            className={`w-28 p-1 text-xs font-medium rounded border-0 focus:ring-1 focus:ring-primary ${statusColors[q.status]}`}
                                         >
                                             {Object.values(DocumentStatus).filter(s => ![DocumentStatus.Dispatched, DocumentStatus.Partial, DocumentStatus.Superseded].includes(s)).map(status => (
                                                 <option key={status} value={status}>{status}</option>
                                             ))}
                                         </select>
                                     </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end space-x-2">
-                                            {q.status === DocumentStatus.Approved && !q.linkedSalesOrderId && (
+                                    <td className="px-4 py-2 text-right">
+                                        <div className="flex items-center justify-end space-x-1">
+                                            {canCreate && q.status === DocumentStatus.Approved && !q.linkedSalesOrderId && (
                                                 <Button size="sm" onClick={() => navigate(`/sales/orders/new/${q.id}`)} icon={<FileUp size={14} />}>
                                                     Create SO
                                                 </Button>
@@ -305,8 +381,8 @@ const QuoteList: React.FC = () => {
                                             <Link to={`/sales/quotes/${q.id}/view`} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full"><Eye size={16} /></Link>
                                             {!isClosedStatus(q.status) && (
                                                 <>
-                                                    <Link to={`/sales/quotes/${q.id}/edit`} className="p-2 text-primary hover:bg-primary-light rounded-full"><Edit size={16} /></Link>
-                                                    <button onClick={() => handleDelete(q.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>
+                                                    {canEdit && <Link to={`/sales/quotes/${q.id}/edit`} className="p-2 text-primary hover:bg-primary-light rounded-full"><Edit size={16} /></Link>}
+                                                    {canDelete && <button onClick={() => handleDelete(q.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>}
                                                 </>
                                             )}
                                         </div>
@@ -315,7 +391,7 @@ const QuoteList: React.FC = () => {
                             ))}
                             {sortedAndFilteredQuotes.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                                    <td colSpan={7} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-sm">
                                         No quotes found. <Link to="/sales/quotes/new" className="text-primary hover:underline">Create one!</Link>
                                     </td>
                                 </tr>

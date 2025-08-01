@@ -4,6 +4,9 @@ import { FolderOpen, Plus, Search, X, Edit3, Save, XCircle, Trash2, Filter, Down
 import { projectsService, Project, ProjectStatus, ProjectType, LineItem, MeasurementItem } from '@/services/projectsService';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction, canAccessProject } from '@/utils/permissions';
+import { UserRole } from '@/types';
 
 // Stats Card Component matching OMS style
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
@@ -30,9 +33,14 @@ const EditableLineItem: React.FC<{
   onAddNewLine?: () => void;
   isLastItem?: boolean;
 }> = ({ item, projectId, productId, onUpdate, onDelete, setProjects, onTabToNext, onAddNewLine, isLastItem }) => {
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editData, setEditData] = useState(item);
+  const isTabbing = React.useRef(false);
+  
+  const canEdit = canPerformAction(user, 'edit');
+  const canDelete = canPerformAction(user, 'delete');
 
   // Update local state when item prop changes
   React.useEffect(() => {
@@ -48,43 +56,61 @@ const EditableLineItem: React.FC<{
   }, [item.description]);
 
   const handleSave = async () => {
-    try {
-      // Get current project data
-      const projects = await projectsService.getAllProjects();
-      const project = projects.find(p => p.id === projectId);
-      if (!project) return;
+    console.log(`💾 handleSave called - isEditing: ${isEditing}, editingField: ${editingField}, isTabbing.current: ${isTabbing.current}`);
+    
+    // Update local state immediately (without Firebase reload)
+    if (setProjects) {
+      setProjects(prevProjects => 
+        prevProjects.map(proj => {
+          if (proj.id === projectId) {
+            return {
+              ...proj,
+              products: proj.products.map(p => 
+                p.id === productId 
+                  ? { 
+                      ...p, 
+                      items: p.items.map(i => i.id === item.id ? editData : i)
+                    }
+                  : p
+              )
+            };
+          }
+          return proj;
+        })
+      );
+    }
 
-      // Update the specific item
-      const updatedProject = {
-        ...project,
-        products: project.products.map(p => 
-          p.id === productId 
-            ? { 
-                ...p, 
-                items: p.items.map(i => i.id === item.id ? editData : i)
-              }
-            : p
-        )
-      };
-
-      // Update local state first for instant response
-      if (setProjects) {
-        setProjects(prevProjects => 
-          prevProjects.map(proj => 
-            proj.id === projectId ? updatedProject : proj
-          )
-        );
+    // Only update backend and reset editing state if NOT tabbing
+    if (!isTabbing.current) {
+      try {
+        console.log('🌐 Updating backend (not tabbing)');
+        // Get current project data for backend update
+        const projects = await projectsService.getAllProjects();
+        const project = projects.find(p => p.id === projectId);
+        if (project) {
+          const updatedProject = {
+            ...project,
+            products: project.products.map(p => 
+              p.id === productId 
+                ? { 
+                    ...p, 
+                    items: p.items.map(i => i.id === item.id ? editData : i)
+                  }
+                : p
+            )
+          };
+          await projectsService.updateProject(projectId, updatedProject);
+        }
+        
+        setIsEditing(false);
+        setEditingField(null);
+      } catch (error) {
+        console.error('Error updating line item:', error);
+        alert('Error updating line item');
+        setEditData(item);
       }
-
-      // Then update backend
-      await projectsService.updateProject(projectId, updatedProject);
-      setIsEditing(false);
-      setEditingField(null);
-    } catch (error) {
-      console.error('Error updating line item:', error);
-      alert('Error updating line item');
-      // Revert local state on error
-      setEditData(item);
+    } else {
+      console.log('⏸️ Skipping backend update (tabbing in progress)');
     }
   };
 
@@ -95,45 +121,75 @@ const EditableLineItem: React.FC<{
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, fieldName: string) => {
+    console.log(`🔑 Key pressed: ${e.key} on field: ${fieldName}, isEditing: ${isEditing}, editingField: ${editingField}`);
+    
     if (e.key === 'Enter') {
+      console.log('✅ Enter pressed - saving and exiting');
       e.preventDefault();
       handleSave();
     } else if (e.key === 'Escape') {
+      console.log('❌ Escape pressed - canceling');
       e.preventDefault();
       handleCancel();
     } else if (e.key === 'Tab') {
+      console.log(`🔄 Tab pressed on ${fieldName}, preventing default and setting isTabbing.current=true`);
       e.preventDefault();
+      isTabbing.current = true;
       
       // Define field order for Tab navigation
       const fields = ['date', 'description', 'type', 'amount'];
       const currentIndex = fields.indexOf(fieldName);
+      console.log(`📍 Current field index: ${currentIndex}, fields: ${fields.join(', ')}`);
       
       if (e.shiftKey) {
+        console.log('⬅️ Shift+Tab pressed');
         // Shift+Tab: go to previous field
         if (currentIndex > 0) {
+          console.log(`🔄 Moving to previous field: ${fields[currentIndex - 1]}`);
           handleSave();
           setTimeout(() => {
             setEditingField(fields[currentIndex - 1]);
             setIsEditing(true);
-          }, 0);
+            isTabbing.current = false;
+            console.log(`✅ Moved to field: ${fields[currentIndex - 1]}`);
+          }, 50);
+        } else {
+          console.log('⏹️ At first field, stopping');
+          isTabbing.current = false;
         }
       } else {
+        console.log('➡️ Tab pressed (forward)');
         // Tab: go to next field or next item
         if (currentIndex < fields.length - 1) {
+          console.log(`🔄 Moving to next field: ${fields[currentIndex + 1]}`);
           handleSave();
           setTimeout(() => {
             setEditingField(fields[currentIndex + 1]);
             setIsEditing(true);
-          }, 0);
+            isTabbing.current = false;
+            console.log(`✅ Moved to field: ${fields[currentIndex + 1]}`);
+          }, 50);
         } else {
+          console.log('⏹️ At last field');
           // We're at the last field
           handleSave();
           if (isLastItem && onAddNewLine) {
+            console.log('➕ Adding new line');
             // Add new line if this is the last item
-            setTimeout(() => onAddNewLine(), 100);
+            setTimeout(() => {
+              onAddNewLine();
+              isTabbing.current = false;
+            }, 100);
           } else if (onTabToNext) {
+            console.log('➡️ Moving to next item');
             // Move to next item
-            setTimeout(() => onTabToNext(), 100);
+            setTimeout(() => {
+              onTabToNext();
+              isTabbing.current = false;
+            }, 100);
+          } else {
+            console.log('⏹️ Ending tab navigation');
+            isTabbing.current = false;
           }
         }
       }
@@ -141,12 +197,14 @@ const EditableLineItem: React.FC<{
   };
 
   const handleFieldClick = (fieldName: string) => {
-    setIsEditing(true);
-    setEditingField(fieldName);
+    if (canEdit) {
+      setIsEditing(true);
+      setEditingField(fieldName);
+    }
   };
 
   return (
-    <tr className="border-b border-slate-100 dark:border-slate-800 group hover:bg-slate-50 dark:hover:bg-slate-750">
+    <tr className="border-b border-slate-100 dark:border-slate-800 group hover:bg-slate-50 dark:hover:bg-slate-700">
       <td className="py-2">
         {isEditing && editingField === 'date' ? (
           <input
@@ -154,13 +212,12 @@ const EditableLineItem: React.FC<{
             value={editData.date}
             onChange={(e) => setEditData({ ...editData, date: e.target.value })}
             onKeyDown={(e) => handleKeyDown(e, 'date')}
-            onBlur={handleSave}
             autoFocus
             className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
           />
         ) : (
           <span 
-            className="text-sm cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-1 rounded"
+            className={`text-sm px-2 py-1 rounded ${canEdit ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : ''}`}
             onClick={() => handleFieldClick('date')}
           >
             {formatDateForDisplay(item.date)}
@@ -174,17 +231,16 @@ const EditableLineItem: React.FC<{
             value={editData.description}
             onChange={(e) => setEditData({ ...editData, description: e.target.value })}
             onKeyDown={(e) => handleKeyDown(e, 'description')}
-            onBlur={handleSave}
             autoFocus
             placeholder="Enter description"
             className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
           />
         ) : (
           <span 
-            className="text-sm cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-1 rounded"
+            className={`text-sm px-2 py-1 rounded ${canEdit ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : ''}`}
             onClick={() => handleFieldClick('description')}
           >
-            {item.description || 'Click to add description'}
+            {item.description || (canEdit ? 'Click to add description' : 'No description')}
           </span>
         )}
       </td>
@@ -194,7 +250,6 @@ const EditableLineItem: React.FC<{
             value={editData.type}
             onChange={(e) => setEditData({ ...editData, type: e.target.value as 'revenue' | 'cost' })}
             onKeyDown={(e) => handleKeyDown(e, 'type')}
-            onBlur={handleSave}
             autoFocus
             className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
           >
@@ -203,7 +258,7 @@ const EditableLineItem: React.FC<{
           </select>
         ) : (
           <span 
-            className={`px-2 py-1 rounded text-xs cursor-pointer hover:opacity-75 ${
+            className={`px-2 py-1 rounded text-xs ${canEdit ? 'cursor-pointer hover:opacity-75' : ''} ${
               item.type === 'revenue' 
                 ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
                 : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
@@ -222,14 +277,13 @@ const EditableLineItem: React.FC<{
             value={editData.amount}
             onChange={(e) => setEditData({ ...editData, amount: Number(e.target.value) || 0 })}
             onKeyDown={(e) => handleKeyDown(e, 'amount')}
-            onBlur={handleSave}
             autoFocus
             placeholder="0.00"
             className="w-24 px-2 py-1 text-xs text-right border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
           />
         ) : (
           <span 
-            className="text-sm font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-1 rounded"
+            className={`text-sm font-medium px-2 py-1 rounded ${canEdit ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700' : ''}`}
             onClick={() => handleFieldClick('amount')}
           >
             {projectsService.formatCurrency(item.amount)}
@@ -238,7 +292,7 @@ const EditableLineItem: React.FC<{
       </td>
       <td className="py-2 text-center">
         <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
+          {canDelete && <button
             onClick={() => {
               if (window.confirm('Are you sure you want to delete this line item?')) {
                 onDelete(item.id);
@@ -248,7 +302,7 @@ const EditableLineItem: React.FC<{
             title="Delete"
           >
             <Trash2 size={14} />
-          </button>
+          </button>}
         </div>
       </td>
     </tr>
@@ -390,6 +444,7 @@ const EditableCategoryName: React.FC<{
   const [editName, setEditName] = useState(productName);
 
   const handleSave = async () => {
+    console.log(`💾 handleSave called - isEditing: ${isEditing}, field: name`);
     try {
       // Get current project data
       const projects = await projectsService.getAllProjects();
@@ -448,7 +503,7 @@ const EditableCategoryName: React.FC<{
         />
       ) : (
         <h4 
-          className="text-lg font-semibold text-slate-800 dark:text-slate-100 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-750 px-1 py-1 rounded"
+          className="text-lg font-semibold text-slate-800 dark:text-slate-100 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 px-1 py-1 rounded"
           onClick={() => setIsEditing(true)}
           title="Click to edit category name"
         >
@@ -474,6 +529,7 @@ const EditableMeasurementItem: React.FC<{
   const [isEditing, setIsEditing] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editData, setEditData] = useState(measurement);
+  const isTabbing = React.useRef(false);
 
   // Update local state when measurement prop changes
   React.useEffect(() => {
@@ -489,37 +545,50 @@ const EditableMeasurementItem: React.FC<{
   }, [measurement.oldDis]);
 
   const handleSave = async () => {
-    try {
-      // Get current project data
-      const projects = await projectsService.getAllProjects();
-      const project = projects.find(p => p.id === projectId);
-      if (!project || !project.measurements) return;
+    console.log(`💾 handleSave called - isEditing: ${isEditing}, editingField: ${editingField}, isTabbing.current: ${isTabbing.current}`);
+    
+    // Update local state immediately (without Firebase reload)
+    if (setProjects) {
+      setProjects(prevProjects => 
+        prevProjects.map(proj => {
+          if (proj.id === projectId && proj.measurements) {
+            return {
+              ...proj,
+              measurements: proj.measurements.map(m => 
+                m.id === measurement.id ? editData : m
+              )
+            };
+          }
+          return proj;
+        })
+      );
+    }
 
-      // Update the specific measurement
-      const updatedProject = {
-        ...project,
-        measurements: project.measurements.map(m => 
-          m.id === measurement.id ? editData : m
-        )
-      };
-
-      // Update local state first for instant response
-      if (setProjects) {
-        setProjects(prevProjects => 
-          prevProjects.map(proj => 
-            proj.id === projectId ? updatedProject : proj
-          )
-        );
+    // Only update backend and reset editing state if NOT tabbing
+    if (!isTabbing.current) {
+      try {
+        console.log('🌐 Updating backend (not tabbing)');
+        const projects = await projectsService.getAllProjects();
+        const project = projects.find(p => p.id === projectId);
+        if (project && project.measurements) {
+          const updatedProject = {
+            ...project,
+            measurements: project.measurements.map(m => 
+              m.id === measurement.id ? editData : m
+            )
+          };
+          await projectsService.updateProject(projectId, updatedProject);
+        }
+        
+        setIsEditing(false);
+        setEditingField(null);
+      } catch (error) {
+        console.error('Error updating measurement:', error);
+        alert('Error updating measurement');
+        setEditData(measurement);
       }
-
-      await projectsService.updateProject(projectId, updatedProject);
-      setIsEditing(false);
-      setEditingField(null);
-    } catch (error) {
-      console.error('Error updating measurement:', error);
-      alert('Error updating measurement');
-      // Revert local state on error
-      setEditData(measurement);
+    } else {
+      console.log('⏸️ Skipping backend update (tabbing in progress)');
     }
   };
 
@@ -538,6 +607,7 @@ const EditableMeasurementItem: React.FC<{
       handleCancel();
     } else if (e.key === 'Tab') {
       e.preventDefault();
+      isTabbing.current = true;
       
       // Define field order for Tab navigation
       const fields = ['date', 'oldDis', 'oldWidth', 'oldHeight', 'oldQty', 'newWidth', 'newHeight', 'newDis', 'newQty'];
@@ -550,7 +620,10 @@ const EditableMeasurementItem: React.FC<{
           setTimeout(() => {
             setEditingField(fields[currentIndex - 1]);
             setIsEditing(true);
-          }, 0);
+            isTabbing.current = false;
+          }, 50);
+        } else {
+          isTabbing.current = false;
         }
       } else {
         // Tab: go to next field or next item
@@ -559,16 +632,25 @@ const EditableMeasurementItem: React.FC<{
           setTimeout(() => {
             setEditingField(fields[currentIndex + 1]);
             setIsEditing(true);
-          }, 0);
+            isTabbing.current = false;
+          }, 50);
         } else {
           // We're at the last field
           handleSave();
           if (isLastItem && onAddNewLine) {
             // Add new line if this is the last item
-            setTimeout(() => onAddNewLine(), 100);
+            setTimeout(() => {
+              onAddNewLine();
+              isTabbing.current = false;
+            }, 100);
           } else if (onTabToNext) {
             // Move to next item
-            setTimeout(() => onTabToNext(), 100);
+            setTimeout(() => {
+              onTabToNext();
+              isTabbing.current = false;
+            }, 100);
+          } else {
+            isTabbing.current = false;
           }
         }
       }
@@ -585,7 +667,7 @@ const EditableMeasurementItem: React.FC<{
   const revenue = oldSqm * measurementRate;
 
   return (
-    <tr className="border-b border-slate-100 dark:border-slate-800 group hover:bg-slate-50 dark:hover:bg-slate-750">
+    <tr className="border-b border-slate-100 dark:border-slate-800 group hover:bg-slate-50 dark:hover:bg-slate-700">
       <td className="py-2">
         {isEditing && editingField === 'date' ? (
           <input
@@ -593,7 +675,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.date}
             onChange={(e) => setEditData({ ...editData, date: e.target.value })}
             onKeyDown={(e) => handleKeyDown(e, 'date')}
-            onBlur={handleSave}
             autoFocus
             className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
           />
@@ -613,7 +694,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.oldDis}
             onChange={(e) => setEditData({ ...editData, oldDis: e.target.value })}
             onKeyDown={(e) => handleKeyDown(e, 'oldDis')}
-            onBlur={handleSave}
             autoFocus
             placeholder="Enter description"
             className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -634,7 +714,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.oldWidth}
             onChange={(e) => setEditData({ ...editData, oldWidth: Number(e.target.value) || 0 })}
             onKeyDown={(e) => handleKeyDown(e, 'oldWidth')}
-            onBlur={handleSave}
             autoFocus
             placeholder="0"
             className="w-20 px-2 py-1 text-xs text-right border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -655,7 +734,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.oldHeight}
             onChange={(e) => setEditData({ ...editData, oldHeight: Number(e.target.value) || 0 })}
             onKeyDown={(e) => handleKeyDown(e, 'oldHeight')}
-            onBlur={handleSave}
             autoFocus
             placeholder="0"
             className="w-20 px-2 py-1 text-xs text-right border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -676,7 +754,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.oldQty}
             onChange={(e) => setEditData({ ...editData, oldQty: Number(e.target.value) || 0 })}
             onKeyDown={(e) => handleKeyDown(e, 'oldQty')}
-            onBlur={handleSave}
             autoFocus
             placeholder="0"
             className="w-16 px-2 py-1 text-xs text-right border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -700,7 +777,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.newWidth}
             onChange={(e) => setEditData({ ...editData, newWidth: Number(e.target.value) || 0 })}
             onKeyDown={(e) => handleKeyDown(e, 'newWidth')}
-            onBlur={handleSave}
             autoFocus
             placeholder="0"
             className="w-20 px-2 py-1 text-xs text-right border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -721,7 +797,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.newHeight}
             onChange={(e) => setEditData({ ...editData, newHeight: Number(e.target.value) || 0 })}
             onKeyDown={(e) => handleKeyDown(e, 'newHeight')}
-            onBlur={handleSave}
             autoFocus
             placeholder="0"
             className="w-20 px-2 py-1 text-xs text-right border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -742,7 +817,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.newDis}
             onChange={(e) => setEditData({ ...editData, newDis: e.target.value })}
             onKeyDown={(e) => handleKeyDown(e, 'newDis')}
-            onBlur={handleSave}
             autoFocus
             placeholder="Enter description"
             className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -763,7 +837,6 @@ const EditableMeasurementItem: React.FC<{
             value={editData.newQty}
             onChange={(e) => setEditData({ ...editData, newQty: Number(e.target.value) || 0 })}
             onKeyDown={(e) => handleKeyDown(e, 'newQty')}
-            onBlur={handleSave}
             autoFocus
             placeholder="0"
             className="w-16 px-2 py-1 text-xs text-right border border-slate-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
@@ -814,6 +887,7 @@ const CreateProjectModal: React.FC<{
     orderNumber: '',
     status: 'Planned' as ProjectStatus,
     projectType: 'Financial' as ProjectType,
+    requiredAccessLevel: UserRole.Viewer,
     estimatedRevenue: '',
     estimatedCost: '',
     measurementRate: ''
@@ -834,6 +908,7 @@ const CreateProjectModal: React.FC<{
       orderNumber: formData.orderNumber.trim(),
       status: formData.status,
       projectType: formData.projectType,
+      requiredAccessLevel: formData.requiredAccessLevel,
       estimatedCost: Number(formData.estimatedCost) || 0,
     };
 
@@ -852,6 +927,7 @@ const CreateProjectModal: React.FC<{
       orderNumber: '',
       status: 'Planned',
       projectType: 'Financial',
+      requiredAccessLevel: UserRole.Viewer,
       estimatedRevenue: '',
       estimatedCost: '',
       measurementRate: ''
@@ -941,6 +1017,25 @@ const CreateProjectModal: React.FC<{
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Required Access Level
+            </label>
+            <select
+              value={formData.requiredAccessLevel}
+              onChange={(e) => setFormData({ ...formData, requiredAccessLevel: e.target.value as UserRole })}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
+            >
+              <option value={UserRole.Viewer}>Viewer (Everyone can see)</option>
+              <option value={UserRole.Maker}>Maker (Maker, Approver, Admin can see)</option>
+              <option value={UserRole.Approver}>Approver (Approver, Admin can see)</option>
+              <option value={UserRole.Admin}>Admin (Only Admin can see)</option>
+            </select>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Select minimum role level required to view this project
+            </p>
+          </div>
+
           {formData.projectType === 'Financial' ? (
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -1000,6 +1095,7 @@ const ProjectsGrid: React.FC<{
   onEdit: (project: Project) => void;
   onDelete: (projectId: string) => void;
 }> = ({ projects, onRefresh, onEdit, onDelete }) => {
+  const { user } = useAuth();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<Project>>({});
   const [sortField, setSortField] = useState<keyof Project>('name');
@@ -1008,6 +1104,8 @@ const ProjectsGrid: React.FC<{
   const [currentSearch, setCurrentSearch] = useState('');
   
   const navigate = useNavigate();
+  const canEdit = canPerformAction(user, 'edit');
+  const canDelete = canPerformAction(user, 'delete');
 
   const handleSort = (field: keyof Project) => {
     if (sortField === field) {
@@ -1060,7 +1158,8 @@ const ProjectsGrid: React.FC<{
                           p.client.toLowerCase().includes(currentSearch.toLowerCase()) ||
                           p.orderNumber.toLowerCase().includes(currentSearch.toLowerCase());
       const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
-      return matchesSearch && matchesStatus;
+      const hasAccess = canAccessProject(user, p);
+      return matchesSearch && matchesStatus && hasAccess;
     })
     .sort((a, b) => {
       const aValue = a[sortField];
@@ -1172,6 +1271,17 @@ const ProjectsGrid: React.FC<{
                   )}
                 </div>
               </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600"
+                onClick={() => handleSort('requiredAccessLevel')}
+              >
+                <div className="flex items-center gap-2">
+                  Access Level
+                  {sortField === 'requiredAccessLevel' && (
+                    <span className={`text-primary ${sortDirection === 'desc' ? 'rotate-180' : ''}`}>↑</span>
+                  )}
+                </div>
+              </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Gross Profit
               </th>
@@ -1195,7 +1305,7 @@ const ProjectsGrid: React.FC<{
               const profitClass = grossProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
               
               return (
-                <tr key={project.id} className="hover:bg-slate-50 dark:hover:bg-slate-750">
+                <tr key={project.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
                   <td className="px-4 py-4 whitespace-nowrap">
                     {isEditing ? (
                       <input
@@ -1265,6 +1375,22 @@ const ProjectsGrid: React.FC<{
                       <span className="text-sm text-slate-900 dark:text-slate-100">{project.projectType}</span>
                     )}
                   </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    {isEditing ? (
+                      <select
+                        value={editData.requiredAccessLevel || project.requiredAccessLevel}
+                        onChange={(e) => setEditData({ ...editData, requiredAccessLevel: e.target.value as UserRole })}
+                        className="w-full px-2 py-1 border border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-primary focus:border-primary dark:bg-slate-700 dark:text-slate-100"
+                      >
+                        <option value={UserRole.Viewer}>Viewer</option>
+                        <option value={UserRole.Maker}>Maker</option>
+                        <option value={UserRole.Approver}>Approver</option>
+                        <option value={UserRole.Admin}>Admin</option>
+                      </select>
+                    ) : (
+                      <span className="text-sm text-slate-900 dark:text-slate-100">{project.requiredAccessLevel}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-4 whitespace-nowrap text-right">
                     <div className={`text-sm font-medium ${profitClass}`}>
                       {projectsService.formatCurrency(grossProfit)}
@@ -1291,20 +1417,20 @@ const ProjectsGrid: React.FC<{
                         </>
                       ) : (
                         <>
-                          <button
+                          {canEdit && <button
                             onClick={() => handleEdit(project)}
                             className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                             title="Edit"
                           >
                             <Edit3 size={16} />
-                          </button>
-                          <button
+                          </button>}
+                          {canDelete && <button
                             onClick={() => handleDelete(project.id, project.name)}
                             className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                             title="Delete"
                           >
                             <Trash2 size={16} />
-                          </button>
+                          </button>}
                         </>
                       )}
                     </div>
@@ -1328,9 +1454,12 @@ const ProjectsGrid: React.FC<{
 
 // Dashboard Component
 const ProjectsDashboard: React.FC<{ projects: Project[]; onRefresh: () => void }> = ({ projects, onRefresh }) => {
+  const { user } = useAuth();
   const [currentSearch, setCurrentSearch] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const navigate = useNavigate();
+  
+  const canCreate = canPerformAction(user, 'create');
 
   const handleCreateProject = async (projectData: Omit<Project, 'id' | 'products' | 'measurements' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -1509,10 +1638,10 @@ const ProjectsDashboard: React.FC<{ projects: Project[]; onRefresh: () => void }
               Export
             </button>
           </div>
-          <Button onClick={() => setIsCreateModalOpen(true)} className="whitespace-nowrap">
+          {canCreate && <Button onClick={() => setIsCreateModalOpen(true)} className="whitespace-nowrap">
             <Plus size={18} className="mr-2" />
             Create Project
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -1625,8 +1754,13 @@ const parseDateForStorage = (dateInput: string): string => {
 };
 
 const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setProjects: React.Dispatch<React.SetStateAction<Project[]>> }> = ({ projects, onRefresh, setProjects }) => {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  
+  const canCreate = canPerformAction(user, 'create');
+  const canEdit = canPerformAction(user, 'edit');
+  const canDelete = canPerformAction(user, 'delete');
 
   const project = projects.find(p => p.id === id);
 
@@ -2063,7 +2197,7 @@ const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setP
                     setProjects={setProjects}
                   />
                   <div className="flex border border-slate-200 dark:border-slate-600 rounded-md overflow-hidden">
-                    <button 
+                    {canCreate && <button 
                       onClick={() => {
                         const newItem = {
                           id: `item-${Date.now()}`,
@@ -2091,8 +2225,8 @@ const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setP
                     >
                       <Plus size={12} />
                       Revenue
-                    </button>
-                    <button 
+                    </button>}
+                    {canCreate && <button 
                       onClick={() => {
                         const newItem = {
                           id: `item-${Date.now()}`,
@@ -2120,7 +2254,7 @@ const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setP
                     >
                       <Plus size={12} />
                       Cost
-                    </button>
+                    </button>}
                   </div>
                 </div>
                 
@@ -2205,7 +2339,7 @@ const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setP
             {project.products.length === 0 && (
               <div className="text-center py-8">
                 <p className="text-slate-500 dark:text-slate-400 mb-4">No product categories yet.</p>
-                <Button onClick={async () => {
+                {canCreate && <Button onClick={async () => {
                   const newProduct = {
                     id: `prod-${Date.now()}`,
                     name: 'New Product Category',
@@ -2220,7 +2354,7 @@ const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setP
                   alert('Product category added successfully!');
                 }}>
                   Add Product Category
-                </Button>
+                </Button>}
               </div>
             )}
           </div>
@@ -2442,7 +2576,7 @@ const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setP
             {project.products.length === 0 && (
               <div className="text-center py-8">
                 <p className="text-slate-500 dark:text-slate-400 mb-4">No product categories yet.</p>
-                <Button onClick={() => {
+                {canCreate && <Button onClick={() => {
                   const newProduct = {
                     id: `prod-${Date.now()}`,
                     name: 'New Product Category',
@@ -2460,7 +2594,7 @@ const ProjectDetail: React.FC<{ projects: Project[]; onRefresh: () => void; setP
                   projectsService.updateProject(project.id, updatedProject);
                 }}>
                   Add Product Category
-                </Button>
+                </Button>}
               </div>
             )}
           </div>

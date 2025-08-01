@@ -17,7 +17,7 @@ const selectClass = "mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-30
 
 const UserForm: React.FC<UserFormProps> = ({ userToEdit, onSave, onCancel, saving }) => {
   const { user: currentUser } = useAuth();
-  const [user, setUser] = useState<UserFormData>({ name: '', email: '', role: UserRole.Viewer, password: '', hasErpAccess: true, hasPayrollAccess: false });
+  const [user, setUser] = useState<UserFormData>({ name: '', email: '', role: UserRole.Viewer, password: '', hasErpAccess: true, hasPayrollAccess: false, hasProjectsAccess: false });
   const isEditing = !!userToEdit?.id;
   const isSuperAdmin = currentUser?.role === UserRole.Admin;
 
@@ -25,7 +25,7 @@ const UserForm: React.FC<UserFormProps> = ({ userToEdit, onSave, onCancel, savin
     if (userToEdit) {
       setUser({ ...userToEdit, password: '' });
     } else {
-      setUser({ name: '', email: '', role: UserRole.Viewer, password: '', hasErpAccess: true, hasPayrollAccess: false });
+      setUser({ name: '', email: '', role: UserRole.Viewer, password: '', hasErpAccess: true, hasPayrollAccess: false, hasProjectsAccess: false });
     }
   }, [userToEdit]);
 
@@ -94,6 +94,10 @@ const UserForm: React.FC<UserFormProps> = ({ userToEdit, onSave, onCancel, savin
               <label className="flex items-center space-x-3">
                   <input type="checkbox" name="hasPayrollAccess" checked={user.hasPayrollAccess} onChange={handleChange} className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary" />
                   <span>Allow access to Payroll module</span>
+              </label>
+              <label className="flex items-center space-x-3">
+                  <input type="checkbox" name="hasProjectsAccess" checked={user.hasProjectsAccess} onChange={handleChange} className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary" />
+                  <span>Allow access to Projects module</span>
               </label>
           </div>
       )}

@@ -6,9 +6,12 @@ const { Link } = ReactRouterDOM;
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { Plus, Eye, Edit, Trash2, ArrowUpDown } from 'lucide-react';
-import { PurchaseOrder, DocumentStatus } from '@/types';
+import { PurchaseOrder, DocumentStatus, PointOfContact } from '@/types';
 import { getDocumentNumberingSettings, saveDocumentNumberingSettings } from '@/components/settings/DocumentNumbering';
+import { getPointsOfContact } from '@/services/pointOfContactService';
 import { db, Timestamp, DocumentSnapshot } from '@/services/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction } from '@/utils/permissions';
 import { collection, query, orderBy, getDocs, doc, getDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 
 
@@ -70,6 +73,11 @@ export const savePurchaseOrder = async (order: Omit<PurchaseOrder, 'id' | 'poNum
 export const deletePurchaseOrder = async (id: string): Promise<void> => {
     await deleteDoc(doc(db, "purchase_orders", id));
 };
+
+export const updatePurchaseOrderStatus = async (id: string, status: DocumentStatus): Promise<void> => {
+    const docRef = doc(db, 'purchase_orders', id);
+    await updateDoc(docRef, { status });
+};
 // --- END FIRESTORE DATA SERVICE ---
 
 
@@ -79,23 +87,37 @@ const statusColors: { [key in DocumentStatus]?: string } = {
     [DocumentStatus.Closed]: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100',
 };
 
-type SortKey = 'poNumber' | 'vendorName' | 'orderDate' | 'total' | 'status';
+type SortKey = 'poNumber' | 'vendorName' | 'orderDate' | 'total' | 'status' | 'pointOfContact';
 
 const isClosedStatus = (status: DocumentStatus) => status === DocumentStatus.Closed;
 
 const PurchaseOrderList: React.FC = () => {
+    const { user } = useAuth();
     const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+    const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'orderDate', direction: 'descending' });
+    
+    const canCreate = canPerformAction(user, 'create');
+    const canEdit = canPerformAction(user, 'edit');
+    const canDelete = canPerformAction(user, 'delete');
 
-    const fetchOrders = () => {
+    const fetchOrders = async () => {
         setLoading(true);
-        getPurchaseOrders().then(data => {
-            setOrders(data);
+        try {
+            const [ordersData, contactsData] = await Promise.all([
+                getPurchaseOrders(),
+                getPointsOfContact()
+            ]);
+            setOrders(ordersData);
+            setPointsOfContact(contactsData);
             setLoading(false);
-        });
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -108,12 +130,28 @@ const PurchaseOrderList: React.FC = () => {
         }
     };
 
+    const handleStatusChange = async (purchaseOrderId: string, newStatus: DocumentStatus) => {
+        try {
+            await updatePurchaseOrderStatus(purchaseOrderId, newStatus);
+            fetchOrders();
+        } catch (error) {
+            console.error("Failed to update PO status:", error);
+            alert("Failed to update purchase order status");
+        }
+    };
+
     const requestSort = (key: SortKey) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
             direction = 'descending';
         }
         setSortConfig({ key, direction });
+    };
+
+    const getPointOfContactName = (pointOfContactId?: string) => {
+        if (!pointOfContactId) return 'Not Set';
+        const contact = pointsOfContact.find(c => c.id === pointOfContactId);
+        return contact ? contact.name : 'Unknown';
     };
 
     const sortedAndFilteredOrders = useMemo(() => {
@@ -126,7 +164,8 @@ const PurchaseOrderList: React.FC = () => {
         if (searchTerm) {
             sortableItems = sortableItems.filter(o =>
                 o.poNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                o.vendorName.toLowerCase().includes(searchTerm.toLowerCase())
+                o.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                getPointOfContactName(o.pointOfContactId).toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
@@ -136,18 +175,25 @@ const PurchaseOrderList: React.FC = () => {
             if (aClosed !== bClosed) return aClosed - bClosed;
             
             if (sortConfig !== null) {
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
-                 if (sortConfig.key === 'orderDate') {
-                    return sortConfig.direction === 'ascending' ? new Date(aValue).getTime() - new Date(bValue).getTime() : new Date(bValue).getTime() - new Date(aValue).getTime();
+                if (sortConfig.key === 'pointOfContact') {
+                    const aValue = getPointOfContactName(a.pointOfContactId);
+                    const bValue = getPointOfContactName(b.pointOfContactId);
+                    if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+                    if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+                } else {
+                    const aValue = a[sortConfig.key];
+                    const bValue = b[sortConfig.key];
+                    if (sortConfig.key === 'orderDate') {
+                        return sortConfig.direction === 'ascending' ? new Date(aValue).getTime() - new Date(bValue).getTime() : new Date(bValue).getTime() - new Date(aValue).getTime();
+                    }
+                    if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+                    if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
                 }
-                if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
-                if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
             }
             return 0;
         });
         return sortableItems;
-    }, [orders, searchTerm, sortConfig, statusFilter]);
+    }, [orders, pointsOfContact, searchTerm, sortConfig, statusFilter]);
 
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
         <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(sortKey)}>
@@ -159,7 +205,7 @@ const PurchaseOrderList: React.FC = () => {
     );
 
     return (
-        <Card title="Purchase Orders" actions={<Button to="/purchase/orders/new" icon={<Plus size={16} />}>New Purchase Order</Button>} bodyClassName="">
+        <Card title="Purchase Orders" actions={canCreate && <Button to="/purchase/orders/new" icon={<Plus size={16} />}>New Purchase Order</Button>} bodyClassName="">
             <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-4 items-center">
                 <input
                     type="text"
@@ -188,6 +234,7 @@ const PurchaseOrderList: React.FC = () => {
                             <tr>
                                 <SortableHeader sortKey="poNumber">PO #</SortableHeader>
                                 <SortableHeader sortKey="vendorName">Vendor</SortableHeader>
+                                <SortableHeader sortKey="pointOfContact">Point of Contact</SortableHeader>
                                 <SortableHeader sortKey="orderDate">Date</SortableHeader>
                                 <SortableHeader sortKey="total">Total</SortableHeader>
                                 <SortableHeader sortKey="status">Status</SortableHeader>
@@ -201,25 +248,42 @@ const PurchaseOrderList: React.FC = () => {
                                         <Link to={`/purchase/orders/${o.id}/view`} className="text-primary hover:underline">{o.poNumber}</Link>
                                     </td>
                                     <td className="px-6 py-4">{o.vendorName}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`text-sm ${!o.pointOfContactId ? 'text-slate-400 italic' : ''}`}>
+                                            {getPointOfContactName(o.pointOfContactId)}
+                                        </span>
+                                    </td>
                                     <td className="px-6 py-4">{new Date(o.orderDate).toLocaleDateString('en-GB')}</td>
                                     <td className="px-6 py-4">₹{o.total.toFixed(2)}</td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[o.status] || 'bg-gray-100'}`}>
-                                            {o.status}
-                                        </span>
+                                        {canEdit && o.status !== DocumentStatus.Closed ? (
+                                            <select
+                                                value={o.status}
+                                                onChange={(e) => handleStatusChange(o.id, e.target.value as DocumentStatus)}
+                                                className={`px-2 py-1 text-xs font-medium rounded-full border-0 ${statusColors[o.status] || 'bg-gray-100'}`}
+                                            >
+                                                {[DocumentStatus.Draft, DocumentStatus.Approved, DocumentStatus.Closed].map(status => (
+                                                    <option key={status} value={status}>{status}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[o.status] || 'bg-gray-100'}`}>
+                                                {o.status}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end space-x-2">
                                             <Link to={`/purchase/orders/${o.id}/view`} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full"><Eye size={16} /></Link>
-                                            <Link to={`/purchase/orders/${o.id}/edit`} className="p-2 text-primary hover:bg-primary-light rounded-full"><Edit size={16} /></Link>
-                                            <button onClick={() => handleDelete(o.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>
+                                            {canEdit && <Link to={`/purchase/orders/${o.id}/edit`} className="p-2 text-primary hover:bg-primary-light rounded-full"><Edit size={16} /></Link>}
+                                            {canDelete && <button onClick={() => handleDelete(o.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
                             {sortedAndFilteredOrders.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
                                         No purchase orders found. <Link to="/purchase/orders/new" className="text-primary hover:underline">Create one!</Link>
                                     </td>
                                 </tr>

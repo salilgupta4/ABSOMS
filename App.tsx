@@ -18,6 +18,7 @@ import ProductForm from '@/components/products/ProductForm';
 import QuoteList from '@/components/sales/QuoteList';
 import SalesOrderList from '@/components/sales/SalesOrderList';
 import DeliveryOrderList from '@/components/sales/DeliveryOrderList';
+import PendingItems from '@/components/sales/PendingItems';
 import PurchaseOrderList from '@/components/purchase/PurchaseOrderList';
 import QuoteForm from '@/components/sales/QuoteForm';
 import SalesOrderForm from '@/components/sales/SalesOrderForm';
@@ -27,6 +28,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import AdminRoute from '@/components/auth/AdminRoute';
+import SettingsRoute from '@/components/auth/SettingsRoute';
 import LoginPage from '@/components/auth/LoginPage';
 import QuoteView from '@/components/sales/QuoteView';
 import SalesOrderView from '@/components/sales/SalesOrderView';
@@ -37,6 +39,7 @@ import VendorList from '@/components/vendors/VendorList';
 import VendorForm from '@/components/vendors/VendorForm';
 import { PurchaseOrderView } from '@/components/purchase/PurchaseOrderView';
 import TermsSettings from '@/components/settings/TermsSettings';
+import PointOfContactManagement from '@/components/settings/PointOfContactManagement';
 import InventoryList from '@/components/inventory/InventoryList';
 import StockHistory from '@/components/inventory/StockHistory';
 import DataManagement from './components/admin/DataManagement';
@@ -55,9 +58,9 @@ import ProjectsModule from './components/projects/ProjectsModule';
 
 function App() {
   return (
-    <ThemeProvider>
-      <HashRouter>
-        <AuthProvider>
+    <HashRouter>
+      <AuthProvider>
+        <ThemeProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route 
@@ -95,6 +98,8 @@ function App() {
                         <Route path="sales/deliveries/new/:orderId" element={<DeliveryOrderForm />} />
                         <Route path="sales/deliveries/:id/edit" element={<DeliveryOrderEditForm />} />
                         <Route path="sales/deliveries/:id/view" element={<DeliveryOrderView />} />
+                        
+                        <Route path="sales/pending-items" element={<PendingItems />} />
 
                         <Route path="purchase/orders" element={<PurchaseOrderList />} />
                         <Route path="purchase/orders/new" element={<PurchaseOrderForm />} />
@@ -107,7 +112,11 @@ function App() {
                         <Route path="scratchpad" element={<ScratchpadList />} />
                         <Route path="scratchpad/:id" element={<ScratchpadView />} />
 
-                        <Route path="projects/*" element={<ProjectsModule />} />
+                        <Route path="projects/*" element={
+                          <ProtectedRoute permissionKey="hasProjectsAccess">
+                            <ProjectsModule />
+                          </ProtectedRoute>
+                        } />
 
                         <Route path="payroll" element={
                           <ProtectedRoute permissionKey="hasPayrollAccess">
@@ -124,11 +133,20 @@ function App() {
                            <Route path="settings" element={<PayrollSettings />} />
                         </Route>
 
-                        <Route path="users" element={<UserManagement />} />
+                        <Route path="users" element={
+                          <AdminRoute>
+                            <UserManagement />
+                          </AdminRoute>
+                        } />
                         
-                        <Route path="settings" element={<SettingsPage />}>
+                        <Route path="settings" element={
+                          <SettingsRoute>
+                            <SettingsPage />
+                          </SettingsRoute>
+                        }>
                           <Route index element={<Navigate to="company" replace />} />
                           <Route path="company" element={<CompanyDetails />} />
+                          <Route path="contacts" element={<PointOfContactManagement />} />
                           <Route path="theme" element={<ThemeSettings />} />
                           <Route path="numbering" element={<DocumentNumbering />} />
                           <Route path="pdf" element={<PdfCustomizer />} />
@@ -152,9 +170,9 @@ function App() {
                 } 
               />
             </Routes>
-        </AuthProvider>
-      </HashRouter>
-    </ThemeProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </HashRouter>
   );
 }
 

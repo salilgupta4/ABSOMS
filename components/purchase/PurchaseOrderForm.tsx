@@ -9,7 +9,8 @@ import { getVendors } from '../vendors/VendorList';
 import { getProducts } from '../products/ProductList';
 import { savePurchaseOrder, getPurchaseOrder } from './PurchaseOrderList';
 import { getCompanyDetails } from '../settings/CompanyDetails';
-import { Vendor, Product, DocumentLineItem, PurchaseOrder } from '../../types';
+import { getPointsOfContact } from '@/services/pointOfContactService';
+import { Vendor, Product, DocumentLineItem, PurchaseOrder, PointOfContact } from '../../types';
 
 const GST_RATE = 18; // 18%
 
@@ -20,8 +21,10 @@ const PurchaseOrderForm: React.FC = () => {
 
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
+    const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
     
     const [vendorId, setVendorId] = useState('');
+    const [pointOfContactId, setPointOfContactId] = useState('');
     const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [lineItems, setLineItems] = useState<DocumentLineItem[]>([]);
@@ -33,17 +36,20 @@ const PurchaseOrderForm: React.FC = () => {
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
-            const [vendorData, productData, poData] = await Promise.all([
+            const [vendorData, productData, contactsData, poData] = await Promise.all([
                 getVendors(),
                 getProducts(),
+                getPointsOfContact(),
                 id ? getPurchaseOrder(id) : Promise.resolve(null)
             ]);
             
             setVendors(vendorData);
             setProducts(productData);
+            setPointsOfContact(contactsData);
 
             if (poData && isEditing) {
                 setVendorId(poData.vendorId);
+                setPointOfContactId(poData.pointOfContactId || '');
                 setOrderDate(new Date(poData.orderDate).toISOString().split('T')[0]);
                 setLineItems(poData.lineItems);
                 setAdditionalDescription(poData.additionalDescription || '');
@@ -51,6 +57,12 @@ const PurchaseOrderForm: React.FC = () => {
             } else {
                 const companyDetails = await getCompanyDetails();
                 setDeliveryAddress(companyDetails.deliveryAddress || '');
+                
+                // Set default point of contact for new POs
+                const defaultContact = contactsData.find(c => c.isDefault) || contactsData[0];
+                if (defaultContact) {
+                    setPointOfContactId(defaultContact.id);
+                }
             }
             setLoading(false);
         };
@@ -133,6 +145,7 @@ const PurchaseOrderForm: React.FC = () => {
             gstTotal,
             total: Math.round(total),
             additionalDescription,
+            pointOfContactId: pointOfContactId || undefined,
         };
         
         try {
@@ -160,6 +173,18 @@ const PurchaseOrderForm: React.FC = () => {
                             onChange={setVendorId}
                             options={vendors.map(v => ({ value: v.id, label: v.name }))}
                             placeholder="Select a vendor"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Point of Contact</label>
+                        <SearchableSelect
+                            value={pointOfContactId}
+                            onChange={setPointOfContactId}
+                            options={pointsOfContact.map(c => ({ 
+                                value: c.id, 
+                                label: `${c.name}${c.designation ? ` - ${c.designation}` : ''}`
+                            }))}
+                            placeholder="Select point of contact"
                         />
                     </div>
                      <div>

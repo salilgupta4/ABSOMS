@@ -68,7 +68,7 @@ const TermsSettings: React.FC = () => {
                             onChange={(e) => handleTermChange(index, e.target.value)}
                             disabled={saving || isViewer}
                             placeholder="Enter term..."
-                            className="flex-grow mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-100 dark:text-slate-800 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm disabled:bg-slate-200 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+                            className="flex-grow mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm disabled:bg-slate-200 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
                         />
                         {!isViewer && (
                             <Button variant="danger" size="sm" onClick={() => removeTerm(index)} disabled={saving} aria-label="Remove term">

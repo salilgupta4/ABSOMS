@@ -38,6 +38,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               role: userData?.role || UserRole.Viewer,
               hasErpAccess: userData?.hasErpAccess === true, // Default to false
               hasPayrollAccess: userData?.hasPayrollAccess === true, // Default to false
+              hasProjectsAccess: userData?.hasProjectsAccess === true, // Default to false
             });
           } else {
             console.error(`User profile not found in Firestore for ${firebaseUser.email} (${firebaseUser.uid})`);

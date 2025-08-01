@@ -137,7 +137,7 @@ const LeaveManagement: React.FC = () => {
                     </div>
                     <div>
                         <label>Leave Type</label>
-                        <select value={editingLeave.leave_type} onChange={e => setEditingLeave(p => ({...p, leave_type: e.target.value as any}))} className="w-full p-2 border rounded">
+                        <select value={editingLeave.leave_type} onChange={e => setEditingLeave(p => ({...p, leave_type: e.target.value as any}))} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100">
                             <option>Select Type</option>
                             <option value="sick">Sick</option>
                             <option value="casual">Casual</option>
@@ -145,12 +145,12 @@ const LeaveManagement: React.FC = () => {
                         </select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                         <div><label>Start Date</label><input type="date" value={editingLeave.start_date || ''} onChange={e => setEditingLeave(p => ({...p, start_date: e.target.value}))} className="w-full p-2 border rounded"/></div>
-                         <div><label>End Date</label><input type="date" value={editingLeave.end_date || ''} onChange={e => setEditingLeave(p => ({...p, end_date: e.target.value}))} className="w-full p-2 border rounded"/></div>
+                         <div><label>Start Date</label><input type="date" value={editingLeave.start_date || ''} onChange={e => setEditingLeave(p => ({...p, start_date: e.target.value}))} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100"/></div>
+                         <div><label>End Date</label><input type="date" value={editingLeave.end_date || ''} onChange={e => setEditingLeave(p => ({...p, end_date: e.target.value}))} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100"/></div>
                     </div>
                      <div>
                         <label>Reason</label>
-                        <textarea value={editingLeave.reason || ''} onChange={e => setEditingLeave(p => ({...p, reason: e.target.value}))} className="w-full p-2 border rounded" />
+                        <textarea value={editingLeave.reason || ''} onChange={e => setEditingLeave(p => ({...p, reason: e.target.value}))} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
                     </div>
                     <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
                 </form>

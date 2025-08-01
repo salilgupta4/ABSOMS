@@ -13,7 +13,24 @@
       "Bash(gh repo create:*)",
       "Bash(git remote add:*)",
       "Bash(git push:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(rm:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 10s npm run dev:*)",
+      "Bash(cp:*)",
+      "Bash(open test-theme.html)",
+      "Bash(node:*)",
+      "WebFetch(domain:sakofchit.github.io)",
+      "WebFetch(domain:dev.to)",
+      "Bash(open retro-demo.html)",
+      "Bash(echo:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(curl:*)",
+      "Bash(PORT=3000 npm run dev)",
+      "Bash(lsof:*)",
+      "Bash(npx vite:*)",
+      "Bash(npm:*)",
+      "Bash(python3:*)"
     ],
     "deny": []
   }

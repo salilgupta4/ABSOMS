@@ -47,7 +47,7 @@ const NumberingForm: React.FC<{
         onChange({ ...settings, [field]: value });
     };
 
-    const inputClass = "mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-100 dark:text-slate-800 border border-slate-300 rounded-md shadow-sm disabled:bg-slate-200 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400";
+    const inputClass = "mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm disabled:bg-slate-200 disabled:text-slate-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400";
 
     return (
         <div className="space-y-4 p-4 border rounded-lg border-slate-200 dark:border-slate-700">

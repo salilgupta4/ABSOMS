@@ -1,5 +1,6 @@
 import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from './firebase';
+import { UserRole } from '@/types';
 
 // Import types from the proj module
 export type ProjectStatus = 'Planned' | 'In Progress' | 'Completed';
@@ -39,6 +40,7 @@ export interface Project {
   client: string;
   status: ProjectStatus;
   projectType: ProjectType;
+  requiredAccessLevel: UserRole;
   estimatedRevenue?: number;
   estimatedCost?: number;
   measurementRate?: number;
@@ -60,6 +62,7 @@ const SAMPLE_PROJECTS: Project[] = [
     client: 'Global Tech Inc.',
     status: 'In Progress',
     projectType: 'Financial',
+    requiredAccessLevel: UserRole.Maker,
     estimatedRevenue: 5000000,
     estimatedCost: 3500000,
     products: [
@@ -92,6 +95,7 @@ const SAMPLE_PROJECTS: Project[] = [
     client: 'Corporate Solutions Ltd.',
     status: 'Planned',
     projectType: 'Measurement',
+    requiredAccessLevel: UserRole.Approver,
     measurementRate: 250,
     estimatedCost: 80000,
     products: [
@@ -117,6 +121,7 @@ const SAMPLE_PROJECTS: Project[] = [
     client: 'Creative Designs',
     status: 'Completed',
     projectType: 'Financial',
+    requiredAccessLevel: 'Viewer' as UserRole,
     estimatedRevenue: 750000,
     estimatedCost: 500000,
     products: [
@@ -148,10 +153,15 @@ class ProjectsService {
     try {
       const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
-      const firebaseProjects = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Project));
+      const firebaseProjects = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Default to Viewer access level for existing projects without the field
+          requiredAccessLevel: data.requiredAccessLevel || UserRole.Viewer
+        } as Project;
+      });
       console.log('Successfully loaded from Firebase:', firebaseProjects.length);
       
       // If Firebase is empty, initialize with sample data
@@ -160,10 +170,15 @@ class ProjectsService {
         await this.initializeSampleData();
         // Reload after initialization
         const querySnapshot2 = await getDocs(q);
-        const initializedProjects = querySnapshot2.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Project));
+        const initializedProjects = querySnapshot2.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            // Default to Viewer access level for existing projects without the field
+            requiredAccessLevel: data.requiredAccessLevel || UserRole.Viewer
+          } as Project;
+        });
         console.log('Initialized Firebase with sample data:', initializedProjects.length);
         return initializedProjects;
       }

@@ -10,7 +10,10 @@ import { getCustomers, getCustomer } from '@/components/customers/CustomerList';
 import { getProducts } from '@/components/products/ProductList';
 import { saveQuote, getQuote } from '@/components/sales/QuoteList';
 import { getTerms } from '@/components/settings/termsService';
-import { Customer, Product, DocumentLineItem, Quote } from '@/types';
+import { getPointsOfContact, getDefaultPointOfContact } from '@/services/pointOfContactService';
+import { Customer, Product, DocumentLineItem, Quote, PointOfContact, CompanyDetails } from '@/types';
+import { getCompanyDetails } from '@/components/settings/CompanyDetails';
+import { getEmailService } from '@/services/emailService';
 
 const GST_RATE = 18; // 18%
 
@@ -23,10 +26,12 @@ const QuoteForm: React.FC = () => {
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [predefinedTerms, setPredefinedTerms] = useState<string[]>([]);
+    const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
     
     const [customerId, setCustomerId] = useState('');
     const [contactId, setContactId] = useState('');
     const [shippingAddressId, setShippingAddressId] = useState('');
+    const [pointOfContactId, setPointOfContactId] = useState('');
     const [expiryDate, setExpiryDate] = useState('');
     const [lineItems, setLineItems] = useState<DocumentLineItem[]>([]);
     
@@ -38,14 +43,17 @@ const QuoteForm: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [customerLoading, setCustomerLoading] = useState(false);
+    const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
 
     // Initial data load
     useEffect(() => {
-        Promise.all([getCustomers(), getProducts(), getTerms(), id ? getQuote(id) : Promise.resolve(null)])
-        .then(async ([customerData, productData, termsData, quoteData]) => {
+        Promise.all([getCustomers(), getProducts(), getTerms(), getPointsOfContact(), getCompanyDetails(), id ? getQuote(id) : Promise.resolve(null)])
+        .then(async ([customerData, productData, termsData, contactsData, companyData, quoteData]) => {
             setCustomers(customerData);
             setProducts(productData);
             setPredefinedTerms(termsData);
+            setPointsOfContact(contactsData);
+            setCompanyDetails(companyData);
 
             if (quoteData && isEditing) {
                 // Pre-fill form if editing
@@ -54,6 +62,7 @@ const QuoteForm: React.FC = () => {
                 
                 setContactId(quoteData.contactId);
                 setShippingAddressId(quoteData.shippingAddress?.id || '');
+                setPointOfContactId(quoteData.pointOfContactId || '');
                 setExpiryDate(new Date(quoteData.expiryDate).toISOString().split('T')[0]);
                 setLineItems(quoteData.lineItems);
 
@@ -73,6 +82,12 @@ const QuoteForm: React.FC = () => {
                 today.setDate(today.getDate() + 15);
                 setExpiryDate(today.toISOString().split('T')[0]);
                 setSelectedTerms(termsData.slice(0, 2));
+                
+                // Set default point of contact
+                const defaultContact = contactsData.find(c => c.isDefault) || contactsData[0];
+                if (defaultContact) {
+                    setPointOfContactId(defaultContact.id);
+                }
             }
             setLoading(false);
         }).catch(err => {
@@ -198,10 +213,39 @@ const QuoteForm: React.FC = () => {
             total: Math.round(total),
             terms: finalTerms,
             additionalDescription,
+            pointOfContactId: pointOfContactId || undefined,
         };
         
         try {
-            await saveQuote(quoteData as Omit<Quote, 'status' | 'quoteNumber'>);
+            console.log('Saving quote...', { isEditing, emailEnabled: companyDetails?.emailSettings?.enableNotifications });
+            const savedQuote = await saveQuote(quoteData as Omit<Quote, 'status' | 'quoteNumber'>);
+            console.log('Quote saved successfully:', savedQuote);
+            
+            // Send email notification for new quotes (not edits)
+            if (!isEditing && companyDetails?.emailSettings?.enableNotifications) {
+                console.log('Attempting to send email notification...');
+                try {
+                    const emailService = getEmailService(companyDetails.emailSettings);
+                    
+                    // Add timeout to prevent hanging
+                    const emailPromise = emailService.sendQuoteNotification(savedQuote, companyDetails);
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Email sending timed out after 10 seconds')), 10000)
+                    );
+                    
+                    await Promise.race([emailPromise, timeoutPromise]);
+                    console.log('Quote creation email notification sent successfully');
+                    alert('Quote created and email notification sent!');
+                } catch (emailError) {
+                    console.error('Failed to send quote creation email:', emailError);
+                    alert('Quote created but email notification failed: ' + (emailError as Error).message);
+                    // Don't block the user flow if email fails
+                }
+            } else {
+                console.log('Email notification skipped:', { isEditing, emailEnabled: companyDetails?.emailSettings?.enableNotifications });
+                alert('Quote created successfully!');
+            }
+            
             navigate('/sales/quotes');
         } catch (error) {
             console.error(error);
@@ -245,6 +289,18 @@ const QuoteForm: React.FC = () => {
                             options={selectedCustomer?.shippingAddresses?.map(a => ({ value: a.id, label: `${a.line1}, ${a.city}` })) || []}
                             placeholder={customerLoading ? "Loading..." : "Select an address"}
                             disabled={!selectedCustomer || customerLoading}
+                        />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Point of Contact</label>
+                        <SearchableSelect
+                            value={pointOfContactId}
+                            onChange={setPointOfContactId}
+                            options={pointsOfContact.map(c => ({ 
+                                value: c.id, 
+                                label: `${c.name}${c.designation ? ` - ${c.designation}` : ''}`
+                            }))}
+                            placeholder="Select point of contact"
                         />
                     </div>
                      <div>

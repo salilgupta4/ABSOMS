@@ -6,6 +6,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import { Loader } from 'lucide-react';
 import { getProducts } from '../products/ProductList';
 import { addStockMovement } from './inventoryService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface StockAdjustmentFormProps {
   onSave: () => void;
@@ -15,6 +16,7 @@ interface StockAdjustmentFormProps {
 }
 
 const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({ onSave, onCancel, saving, setSaving }) => {
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [type, setType] = useState<'in' | 'out'>('in');
@@ -27,29 +29,72 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({ onSave, onCan
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProductId || quantity <= 0) {
-      alert('Please select a product and enter a valid quantity.');
+    
+    console.log('Form submission started with values:', {
+      selectedProductId,
+      type,
+      quantity,
+      notes
+    });
+    
+    if (!selectedProductId || selectedProductId.trim() === '') {
+      alert('Please select a product.');
       return;
     }
+    
+    if (!quantity || quantity <= 0) {
+      alert('Please enter a valid quantity greater than 0.');
+      return;
+    }
+    
+    if (!notes || notes.trim() === '') {
+      alert('Please enter notes for this adjustment.');
+      return;
+    }
+    
     setSaving(true);
     const selectedProduct = products.find(p => p.id === selectedProductId);
     if (!selectedProduct) {
-        alert('Selected product not found.');
+        alert('Selected product not found in product list.');
         setSaving(false);
         return;
     }
+    
+    console.log('Selected product found:', selectedProduct);
+    console.log('Current user:', user);
+    
+    if (!user) {
+      alert('You must be logged in to add stock adjustments.');
+      setSaving(false);
+      return;
+    }
 
     try {
-      await addStockMovement({
+      console.log('Saving stock movement with data:', {
         productId: selectedProductId,
         productName: selectedProduct.name,
         type,
         quantity,
         notes,
       });
+      
+      const result = await addStockMovement({
+        productId: selectedProductId,
+        productName: selectedProduct.name,
+        type,
+        quantity,
+        notes,
+      });
+      console.log('Stock movement saved successfully:', result);
       onSave();
     } catch (error) {
-      alert('Failed to save stock adjustment.');
+      console.error('Failed to save stock adjustment - detailed error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      alert(`Failed to save stock adjustment: ${error.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }

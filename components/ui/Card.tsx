@@ -10,15 +10,15 @@ interface CardProps {
   bodyClassName?: string;
 }
 
-const Card: React.FC<CardProps> = ({ children, title, actions, className = '', icon, bodyClassName = 'p-6' }) => {
+const Card: React.FC<CardProps> = ({ children, title, actions, className = '', icon, bodyClassName = 'p-4' }) => {
   return (
     <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-md overflow-hidden flex flex-col ${className}`}>
       {(title || actions) && (
-        <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex justify-between items-center px-4 py-3 border-b border-slate-200 dark:border-slate-700">
           {title && 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               {icon && <span className="text-primary">{icon}</span>}
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{title}</h3>
+              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">{title}</h3>
             </div>
           }
           {actions && <div className="flex items-center space-x-2">{actions}</div>}

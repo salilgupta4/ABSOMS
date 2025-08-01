@@ -1,7 +1,7 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/types';
+import { canAccessAdminFeatures } from '@/utils/permissions';
 import { Loader } from 'lucide-react';
 
 interface AdminRouteProps {
@@ -10,7 +10,6 @@ interface AdminRouteProps {
 
 const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   const { user, loading } = useAuth();
-  const location = useLocation();
 
   if (loading) {
     return (
@@ -21,13 +20,12 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  // Check if user is Admin
-  if (user.role !== UserRole.Admin) {
-    // User is logged in but is not an Admin
-    return <Navigate to="/dashboard?error=admin_required" replace />;
+  if (!canAccessAdminFeatures(user)) {
+    // Redirect to dashboard with access denied message
+    return <Navigate to="/dashboard?error=admin_access_denied" replace />;
   }
 
   return children;

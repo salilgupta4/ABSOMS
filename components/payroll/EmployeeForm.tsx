@@ -11,7 +11,7 @@ interface EmployeeFormProps {
     onCancel: () => void;
 }
 
-const formInputClass = "mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-100 dark:text-slate-800 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm";
+const formInputClass = "mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm";
 const selectClass = `${formInputClass} pr-8`;
 
 const emptyBankAccount: Omit<BankAccount, 'id'> = { bankName: '', accountNumber: '', ifsc: '', isDefault: false };
@@ -132,7 +132,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employeeToEdit, onSave, onC
                     {bankAccounts.map((account, index) => (
                         <div key={account.id} className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 space-y-3 relative">
                             <div className="absolute top-2 right-2 flex items-center space-x-2">
-                                <button type="button" onClick={() => setDefaultBankAccount(index)} className={`px-2 py-0.5 text-xs rounded-full ${account.isDefault ? 'bg-primary text-white cursor-default' : 'bg-slate-200 hover:bg-slate-300'}`} disabled={saving || !!account.isDefault}>
+                                <button type="button" onClick={() => setDefaultBankAccount(index)} className={`px-2 py-0.5 text-xs rounded-full ${account.isDefault ? 'bg-primary text-white cursor-default' : 'bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-700 dark:text-slate-200'}`} disabled={saving || !!account.isDefault}>
                                     {account.isDefault ? 'Default' : 'Set Default'}
                                 </button>
                                 <button type="button" onClick={() => removeBankAccount(index)} className="text-red-500 hover:text-red-700 disabled:opacity-50" disabled={saving}>

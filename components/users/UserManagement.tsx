@@ -9,6 +9,7 @@ import UserForm from './UserForm';
 import { getUsers, saveUser, deleteUser } from './userService';
 import { Plus, Edit, Trash2, Loader, ArrowUpDown, CheckSquare, XSquare } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction, canAccessAdminFeatures } from '@/utils/permissions';
 
 type SortKey = 'name' | 'email' | 'role';
 
@@ -22,8 +23,10 @@ const UserManagement: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'name', direction: 'ascending' });
 
-    const isViewer = currentUser?.role === UserRole.Viewer;
-    const isSuperAdmin = currentUser?.role === UserRole.Admin;
+    const canCreate = canPerformAction(currentUser, 'create') && canAccessAdminFeatures(currentUser);
+    const canEdit = canPerformAction(currentUser, 'edit') && canAccessAdminFeatures(currentUser);
+    const canDelete = canPerformAction(currentUser, 'delete') && canAccessAdminFeatures(currentUser);
+    const isSuperAdmin = canAccessAdminFeatures(currentUser);
 
     const fetchUsers = () => {
         setLoading(true);
@@ -38,19 +41,19 @@ const UserManagement: React.FC = () => {
     }, []);
 
     const handleAddUser = () => {
-        if (!isSuperAdmin) return;
+        if (!canCreate) return;
         setEditingUser(null);
         setIsModalOpen(true);
     };
     
     const handleEditUser = (user: User) => {
-        if (!isSuperAdmin) return;
+        if (!canEdit) return;
         setEditingUser(user);
         setIsModalOpen(true);
     }
 
     const handleDeleteUser = (userId: string) => {
-        if (!isSuperAdmin) return;
+        if (!canDelete) return;
         if (window.confirm("Are you sure you want to delete this user?")) {
             deleteUser(userId).then(() => {
                 fetchUsers();
@@ -59,15 +62,19 @@ const UserManagement: React.FC = () => {
     }
 
     const handleSaveUser = async (userData: UserFormData) => {
-        if (!isSuperAdmin) return;
+        if (!canCreate && !canEdit) return;
         setSaving(true);
+        
+        console.log('Attempting to save user:', userData);
+        
         try {
-            await saveUser(userData);
+            const result = await saveUser(userData);
+            console.log('User saved successfully:', result);
             setIsModalOpen(false);
             setEditingUser(null);
             fetchUsers();
         } catch (error) {
-            console.error("Failed to save user:", error);
+            console.error("Failed to save user - detailed error:", error);
             
             // Provide specific error messages
             const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
@@ -136,7 +143,7 @@ const UserManagement: React.FC = () => {
         <>
             <Card
                 title="User Management"
-                actions={isSuperAdmin && <Button onClick={handleAddUser} icon={<Plus size={16} />}>Add User</Button>}
+                actions={canCreate && <Button onClick={handleAddUser} icon={<Plus size={16} />}>Add User</Button>}
                 bodyClassName=""
             >
                  <div className="p-4 border-b border-slate-200 dark:border-slate-700">
@@ -162,7 +169,8 @@ const UserManagement: React.FC = () => {
                                     <SortableHeader sortKey="role">Role</SortableHeader>
                                     <th scope="col" className="px-6 py-3">ERP Access</th>
                                     <th scope="col" className="px-6 py-3">Payroll Access</th>
-                                    {isSuperAdmin && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
+                                    <th scope="col" className="px-6 py-3">Projects Access</th>
+                                    {(canEdit || canDelete) && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -181,11 +189,14 @@ const UserManagement: React.FC = () => {
                                         <td className="px-6 py-4 text-center">
                                             {user.hasPayrollAccess ? <CheckSquare size={18} className="text-green-500" /> : <XSquare size={18} className="text-slate-400" />}
                                         </td>
-                                        {isSuperAdmin && (
+                                        <td className="px-6 py-4 text-center">
+                                            {user.hasProjectsAccess ? <CheckSquare size={18} className="text-green-500" /> : <XSquare size={18} className="text-slate-400" />}
+                                        </td>
+                                        {(canEdit || canDelete) && (
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end space-x-2">
-                                                    <button onClick={() => handleEditUser(user)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full"><Edit size={16} /></button>
-                                                    {currentUser?.id !== user.id && <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>}
+                                                    {canEdit && <button onClick={() => handleEditUser(user)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full"><Edit size={16} /></button>}
+                                                    {canDelete && currentUser?.id !== user.id && <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button>}
                                                 </div>
                                             </td>
                                         )}

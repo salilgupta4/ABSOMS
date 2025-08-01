@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PdfSettings, CompanyDetails as CompanyDetailsType, Quote, DocumentStatus, UserRole } from '@/types';
+import { PdfSettings, CompanyDetails as CompanyDetailsType, Quote, DocumentStatus, UserRole, PointOfContact } from '@/types';
 import Button from '@/components/ui/Button';
 import { getPdfSettings, savePdfSettings } from '@/components/settings/pdfSettingsService';
 import { getCompanyDetails } from '@/components/settings/CompanyDetails';
@@ -156,6 +156,19 @@ const PdfCustomizer: React.FC = () => {
         gstTotal: 433.8,
         total: 2843.8,
         terms: ["Payment: 100% advance.", "Delivery: Within 2-3 weeks."],
+        pointOfContactId: 'poc-dummy',
+    };
+
+    // Dummy point of contact for preview
+    const dummyPointOfContact: PointOfContact = {
+        id: 'poc-dummy',
+        name: 'Jane Smith',
+        designation: 'Sales Manager',
+        phone: '+91 98765 43210',
+        email: 'jane.smith@company.com',
+        isDefault: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
     };
 
     const fileInputClasses = "mt-1 text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-light dark:file:bg-slate-700 file:text-primary dark:file:text-slate-200 hover:file:bg-blue-200 dark:hover:file:bg-slate-600 disabled:file:opacity-50";
@@ -168,10 +181,11 @@ const PdfCustomizer: React.FC = () => {
                 <div className="lg:w-1/3 space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Template</label>
-                        <select value={settings.template} onChange={e => setSettings({...settings, template: e.target.value as any})} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-100 dark:text-slate-800 border-slate-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md disabled:opacity-50" disabled={isViewer}>
+                        <select value={settings.template} onChange={e => setSettings({...settings, template: e.target.value as any})} className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-white dark:bg-slate-700 dark:text-slate-100 border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md disabled:opacity-50" disabled={isViewer}>
                             <option value="classic">Classic</option>
                             <option value="adaptec">Adaptec Style</option>
                             <option value="BandW">Black & White Professional</option>
+                            <option value="BandW POI">B&W with Our Point of Contact</option>
                             <option value="modern">Modern</option>
                             <option value="elegant">Elegant</option>
                         </select>
@@ -213,7 +227,7 @@ const PdfCustomizer: React.FC = () => {
                 <div className="lg:w-2/3 border-2 border-dashed border-slate-300 dark:border-slate-600 p-4 rounded-lg bg-slate-100 dark:bg-slate-900 overflow-hidden" ref={previewContainerRef}>
                      <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top left' }}>
                          <PrintWrapper companyDetails={companyDetails} settings={settings} totalPages={1} currentPage={1}>
-                             <QuotePrint quote={dummyQuote} settings={settings} companyDetails={companyDetails} isLastPage={true} itemStartIndex={0}/>
+                             <QuotePrint quote={dummyQuote} settings={settings} companyDetails={companyDetails} isLastPage={true} itemStartIndex={0} pointOfContact={dummyPointOfContact}/>
                          </PrintWrapper>
                     </div>
                 </div>

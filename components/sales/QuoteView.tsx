@@ -4,16 +4,18 @@ import * as ReactRouterDOM from 'react-router-dom';
 const { useParams, Link, useNavigate } = ReactRouterDOM;
 import ReactDOM from 'react-dom/client';
 import Card from '../ui/Card';
-import { Quote, CompanyDetails, PdfSettings } from '../../types';
+import { Quote, CompanyDetails, PdfSettings, PointOfContact } from '../../types';
 import { getQuote } from './QuoteList';
-import { Loader, Edit, ArrowLeft, Download, FileText } from 'lucide-react';
+import { Loader, Edit, ArrowLeft, Download, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import Button from '../ui/Button';
 import { getCompanyDetails } from '../settings/CompanyDetails';
 import { getPdfSettings } from '../settings/pdfSettingsService';
+import { getPointsOfContact } from '@/services/pointOfContactService';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import PrintWrapper from '../Print/PrintWrapper';
 import QuotePrint from '../Print/QuotePrint';
+import { getEmailService } from '../../services/emailService';
 
 // --- CSV Export Helper ---
 const convertToCSV = (data: any[], headers: string[]): string => {
@@ -61,8 +63,11 @@ const QuoteView: React.FC = () => {
     const [quote, setQuote] = useState<Quote | null>(null);
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
     const [pdfSettings, setPdfSettings] = useState<PdfSettings | null>(null);
+    const [pointOfContact, setPointOfContact] = useState<PointOfContact | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [emailStatus, setEmailStatus] = useState<'success' | 'error' | null>(null);
     
     useEffect(() => {
         if (id) {
@@ -70,11 +75,17 @@ const QuoteView: React.FC = () => {
             Promise.all([
                 getQuote(id),
                 getCompanyDetails(),
-                getPdfSettings()
-            ]).then(([quoteData, companyData, pdfSettingsData]) => {
+                getPdfSettings(),
+                getPointsOfContact()
+            ]).then(([quoteData, companyData, pdfSettingsData, contactsData]) => {
                 setQuote(quoteData || null);
                 setCompanyDetails(companyData || null);
                 setPdfSettings(pdfSettingsData);
+                // Find the point of contact for this quote
+                if (quoteData?.pointOfContactId && contactsData) {
+                    const contact = contactsData.find(c => c.id === quoteData.pointOfContactId);
+                    setPointOfContact(contact || null);
+                }
                 setLoading(false);
             }).catch(err => {
                 console.error("Error loading quote view data:", err);
@@ -139,6 +150,7 @@ const QuoteView: React.FC = () => {
                         companyDetails={companyDetails}
                         isLastPage={isLastPage}
                         itemStartIndex={itemStartIndex}
+                        pointOfContact={pointOfContact || undefined}
                     />
                 </PrintWrapper>
             );
@@ -157,8 +169,37 @@ const QuoteView: React.FC = () => {
             document.body.removeChild(printContainer);
         }
 
-        pdf.save(`Quote-${quote?.quoteNumber}.pdf`);
+        const filename = `Quote-${quote?.quoteNumber}.pdf`;
+        pdf.save(filename);
         setIsGeneratingPdf(false);
+
+        // Send email notification if enabled
+        if (companyDetails.emailSettings?.enableNotifications) {
+            setIsSendingEmail(true);
+            setEmailStatus(null);
+            try {
+                const emailService = getEmailService(companyDetails.emailSettings);
+                
+                await emailService.sendQuoteNotification(
+                    quote,
+                    companyDetails
+                );
+                
+                setEmailStatus('success');
+                console.log('Quote email notification sent successfully');
+                
+                // Clear status after 3 seconds
+                setTimeout(() => setEmailStatus(null), 3000);
+            } catch (error) {
+                console.error('Failed to send quote email notification:', error);
+                setEmailStatus('error');
+                
+                // Clear status after 5 seconds
+                setTimeout(() => setEmailStatus(null), 5000);
+            } finally {
+                setIsSendingEmail(false);
+            }
+        }
     };
 
     if (loading) {
@@ -171,14 +212,32 @@ const QuoteView: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {emailStatus && (
+                <div className={`p-4 rounded-md flex items-center space-x-3 ${
+                    emailStatus === 'success' 
+                        ? 'bg-green-50 border border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300' 
+                        : 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
+                }`}>
+                    {emailStatus === 'success' ? (
+                        <CheckCircle size={20} className="text-green-600 dark:text-green-400" />
+                    ) : (
+                        <AlertCircle size={20} className="text-red-600 dark:text-red-400" />
+                    )}
+                    <span>
+                        {emailStatus === 'success' 
+                            ? 'Email notification sent successfully!' 
+                            : 'Failed to send email notification. Please check your email settings.'}
+                    </span>
+                </div>
+            )}
              <div className="flex justify-between items-center">
                 <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-200">Quote #{quote.quoteNumber}{quote.revisionNumber ? `-Rev${quote.revisionNumber}` : ''}</h3>
                 <div className="flex items-center space-x-2">
                     <Button variant="secondary" onClick={() => navigate(-1)} icon={<ArrowLeft size={16}/>}>Back</Button>
                     <Button to={`/sales/quotes/${quote.id}/edit`} variant="secondary" icon={<Edit size={16}/>}>Edit</Button>
                     <Button onClick={handleExportCsv} variant="secondary" icon={<FileText size={16} />}>Export CSV</Button>
-                    <Button onClick={handleDownloadPdf} icon={isGeneratingPdf ? <Loader size={16} className="animate-spin" /> : <Download size={16}/>} disabled={isGeneratingPdf}>
-                        {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
+                    <Button onClick={handleDownloadPdf} icon={(isGeneratingPdf || isSendingEmail) ? <Loader size={16} className="animate-spin" /> : <Download size={16}/>} disabled={isGeneratingPdf || isSendingEmail}>
+                        {isGeneratingPdf ? 'Generating...' : isSendingEmail ? 'Sending Email...' : 'Download PDF'}
                     </Button>
                 </div>
             </div>

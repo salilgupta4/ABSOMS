@@ -25,6 +25,7 @@ export const login = async (email: string, password: string): Promise<User | nul
         role: UserRole.Viewer, // Placeholder
         hasErpAccess: false,
         hasPayrollAccess: false,
+        hasProjectsAccess: false,
     };
 };
 
@@ -40,6 +41,7 @@ export const getUsers = async (): Promise<User[]> => {
             role: data.role || UserRole.Viewer,
             hasErpAccess: data.hasErpAccess === true, // Safely default to false
             hasPayrollAccess: data.hasPayrollAccess === true, // Safely default to false
+            hasProjectsAccess: data.hasProjectsAccess === true, // Safely default to false
         } as User;
     });
     return userList;
@@ -54,6 +56,7 @@ export const saveUser = async (userData: UserFormData): Promise<User> => {
             email: userData.email, // Note: updating email in Firestore only. Auth email is separate.
             hasErpAccess: userData.hasErpAccess,
             hasPayrollAccess: userData.hasPayrollAccess,
+            hasProjectsAccess: userData.hasProjectsAccess,
         });
         // You'd need an admin SDK on a backend to update auth properties like password/email
         if (userData.password) {
@@ -83,6 +86,7 @@ export const saveUser = async (userData: UserFormData): Promise<User> => {
             role: userData.role,
             hasErpAccess: userData.hasErpAccess ?? true,
             hasPayrollAccess: userData.hasPayrollAccess ?? false,
+            hasProjectsAccess: userData.hasProjectsAccess ?? false,
         };
         await setDoc(userDocRef, newUserProfile);
         

@@ -8,8 +8,12 @@ import Button from '../ui/Button';
 import { Plus, Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import { Customer, CustomerFormData, UserRole } from '../../types';
 import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction } from '@/utils/permissions';
 import { db } from '@/services/firebase';
 import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useSearchableList } from '@/hooks/useSearchableList';
+import SearchableInput from '@/components/ui/SearchableInput';
 
 // --- FIRESTORE DATA SERVICE ---
 
@@ -116,10 +120,36 @@ const CustomerList: React.FC = () => {
     const { user } = useAuth();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
+    const isViewer = user?.role === 'Viewer';
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'name', direction: 'ascending'});
     
-    const isViewer = user?.role === UserRole.Viewer;
+    const canCreate = canPerformAction(user, 'create');
+    const canEdit = canPerformAction(user, 'edit');
+    const canDelete = canPerformAction(user, 'delete');
+    
+    const { searchInputRef } = useKeyboardShortcuts({
+        newItemPath: '/customers/new',
+        canCreate,
+        searchTerm,
+        setSearchTerm
+    });
+    
+    const {
+        filteredItems: searchResults,
+        selectedIndex,
+        showResults,
+        handleInputFocus,
+        handleInputChange,
+        selectItem
+    } = useSearchableList({
+        items: customers,
+        searchTerm,
+        setSearchTerm,
+        getItemId: (customer) => customer.id,
+        getItemUrl: (customer) => `/customers/${customer.id}/edit`,
+        searchFields: ['name', 'gstin', 'primaryContactName']
+    });
 
     const fetchCustomers = () => {
         setLoading(true);
@@ -194,16 +224,32 @@ const CustomerList: React.FC = () => {
     return (
         <Card
             title="Customers"
-            actions={!isViewer && <Button to="/customers/new" icon={<Plus size={16} />}>New Customer</Button>}
+            actions={canCreate && <Button to="/customers/new" icon={<Plus size={16} />}>New Customer</Button>}
             bodyClassName=""
         >
              <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-                <input
-                    type="text"
-                    placeholder="Filter by name or GSTIN..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full md:w-1/3 px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm"
+                <SearchableInput
+                    searchInputRef={searchInputRef}
+                    searchTerm={searchTerm}
+                    placeholder="Search customers... (Press '/' to focus, ↑↓ to navigate, ↵ to select)"
+                    filteredItems={searchResults}
+                    selectedIndex={selectedIndex}
+                    showResults={showResults}
+                    onInputChange={handleInputChange}
+                    onInputFocus={handleInputFocus}
+                    onItemSelect={selectItem}
+                    className="w-full md:w-1/3"
+                    renderItem={(customer, index, isSelected) => (
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <div className="font-medium">{customer.name}</div>
+                                <div className="text-xs opacity-75">{customer.gstin || 'No GSTIN'}</div>
+                            </div>
+                            <div className="text-xs opacity-60">
+                                {customer.primaryContactName || 'No contact'}
+                            </div>
+                        </div>
+                    )}
                 />
             </div>
             {loading ? (
@@ -217,7 +263,7 @@ const CustomerList: React.FC = () => {
                                 <SortableHeader sortKey="gstin">GSTIN</SortableHeader>
                                 <SortableHeader sortKey="primaryContactName">Primary Contact</SortableHeader>
                                 <th scope="col" className="px-6 py-3">Email</th>
-                                {!isViewer && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
+                                {(canEdit || canDelete) && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -231,15 +277,15 @@ const CustomerList: React.FC = () => {
                                         <td className="px-6 py-4">{customer.gstin}</td>
                                         <td className="px-6 py-4">{primaryContactName}</td>
                                         <td className="px-6 py-4">{primaryContactEmail}</td>
-                                        {!isViewer && (
+                                        {(canEdit || canDelete) && (
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end space-x-1">
-                                                    <Link to={`/customers/${customer.id}/edit`} className="p-2 text-primary hover:bg-primary-light dark:hover:bg-slate-700 rounded-full transition-colors">
+                                                    {canEdit && <Link to={`/customers/${customer.id}/edit`} className="p-2 text-primary hover:bg-primary-light dark:hover:bg-slate-700 rounded-full transition-colors">
                                                         <Edit size={16} />
-                                                    </Link>
-                                                    <button onClick={() => handleDelete(customer.id, customer.name)} className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                                                    </Link>}
+                                                    {canDelete && <button onClick={() => handleDelete(customer.id, customer.name)} className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-slate-700 rounded-full transition-colors">
                                                         <Trash2 size={16} />
-                                                    </button>
+                                                    </button>}
                                                 </div>
                                             </td>
                                         )}

@@ -70,16 +70,16 @@ const PurchaseOrderPrint: React.FC<PurchaseOrderPrintProps> = ({ order, settings
                 <tbody>
                     {order.lineItems.map((item, index) => (
                         <tr key={item.id} className="border-b border-gray-300">
-                            <td className="py-1 px-1 align-top text-center">{itemStartIndex + index + 1}</td>
-                            <td className="py-1 px-1 align-top">
+                            <td className="py-2 px-1 align-top text-center">{itemStartIndex + index + 1}</td>
+                            <td className="py-2 px-1 align-top">
                                 <p className="font-semibold text-gray-800">{item.productName}</p>
                                 <p className="text-gray-600 whitespace-pre-wrap mt-0.5">{item.description}</p>
                             </td>
-                            {settings.showHsnCode && <td className="py-1 px-1 text-center align-top">{item.hsnCode}</td>}
-                            <td className="py-1 px-1 text-center align-top">{item.quantity}</td>
-                            <td className="py-1 px-1 text-center align-top">{item.unit}</td>
-                            <td className="py-1 px-1 text-right align-top">{item.unitPrice.toFixed(2)}</td>
-                            <td className="py-1 px-1 text-right align-top font-semibold">{item.total.toFixed(2)}</td>
+                            {settings.showHsnCode && <td className="py-2 px-1 text-center align-top">{item.hsnCode}</td>}
+                            <td className="py-2 px-1 text-center align-top">{item.quantity}</td>
+                            <td className="py-2 px-1 text-center align-top">{item.unit}</td>
+                            <td className="py-2 px-1 text-right align-top">{item.unitPrice.toFixed(2)}</td>
+                            <td className="py-2 px-1 text-right align-top font-semibold">{item.total.toFixed(2)}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -90,42 +90,46 @@ const PurchaseOrderPrint: React.FC<PurchaseOrderPrintProps> = ({ order, settings
             )}
             
             {isLastPage && (
-                <div className="mt-2">
-                    {/* Totals */}
+                <div className="mt-2 relative">
+                    {/* Notes - positioned independently on the left */}
+                    <div className="absolute left-0 top-0 w-1/2 pr-4 text-xs">
+                        {order.additionalDescription && (
+                            <div>
+                                <h4 className="font-semibold text-gray-700 mb-1 text-xs">Notes:</h4>
+                                <p className="text-gray-600 whitespace-pre-wrap">{order.additionalDescription}</p>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Totals section - fixed position on the right */}
                     <div className="flex justify-end">
                         <div className="w-2/5 text-xs">
+                            {/* Subtotal */}
                             <div className="flex justify-between py-1"><span className="text-gray-600">Subtotal</span><span className="font-semibold text-right">₹{order.subTotal.toFixed(2)}</span></div>
+                            {/* GST */}
                             <div className="flex justify-between py-1"><span className="text-gray-600">GST ({order.lineItems[0]?.taxRate || 18}%)</span><span className="font-semibold text-right">₹{order.gstTotal.toFixed(2)}</span></div>
+                            {/* Grand Total */}
                             <div className="flex justify-between py-2 mt-1 border-t-2 border-black"><span className="font-bold text-base">Grand Total</span><span className="font-bold text-base text-right">₹{order.total.toFixed(2)}</span></div>
                         </div>
                     </div>
-                    {/* Footer Content: Notes and Signature */}
-                     <div className="flex justify-between items-end pt-4 text-xs">
-                         <div className="w-1/2 pr-4">
-                            {order.additionalDescription && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-gray-700 mb-1 text-xs">Notes:</h4>
-                                    <p className="text-gray-600 whitespace-pre-wrap">{order.additionalDescription}</p>
-                                </div>
-                            )}
-                        </div>
-                         <div className="w-1/2 flex justify-end">
-                             <div className="w-48 text-center">
-                                <div className="h-16 flex justify-center items-center">
-                                    {settings.signatureImage && (
-                                        <img
-                                            src={settings.signatureImage}
-                                            alt="Signature"
-                                            className="max-h-full"
-                                            style={{ height: `${settings.signatureSize}px` }}
-                                        />
-                                    )}
-                                </div>
-                                <div className="pt-1 text-sm">
-                                    Authorized By
-                                </div>
-                                <p className="text-[10px]">For {companyDetails.name}</p>
+                    
+                    {/* Signature - moved higher with less padding */}
+                    <div className="flex justify-end pt-2 text-xs">
+                        <div className="w-48 text-center">
+                            <div className="h-16 flex justify-center items-center">
+                                {settings.signatureImage && (
+                                    <img
+                                        src={settings.signatureImage}
+                                        alt="Signature"
+                                        className="max-h-full"
+                                        style={{ height: `${settings.signatureSize}px` }}
+                                    />
+                                )}
                             </div>
+                            <div className="pt-1 text-sm">
+                                Authorized By
+                            </div>
+                            <p className="text-[10px]">For {companyDetails.name}</p>
                         </div>
                     </div>
                 </div>
