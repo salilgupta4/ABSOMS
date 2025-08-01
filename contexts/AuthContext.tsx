@@ -25,36 +25,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
           // User is signed in, get their profile from Firestore
           console.log(`Attempting to load profile for user: ${firebaseUser.email}`);
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
           
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            console.log('User profile loaded successfully:', userData);
-            setUser({
-              id: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              name: userData?.name || '',
-              role: userData?.role || UserRole.Viewer,
-              hasErpAccess: userData?.hasErpAccess === true, // Default to false
-              hasPayrollAccess: userData?.hasPayrollAccess === true, // Default to false
-              hasProjectsAccess: userData?.hasProjectsAccess === true, // Default to false
-            });
-          } else {
-            console.error(`User profile not found in Firestore for ${firebaseUser.email} (${firebaseUser.uid})`);
+          // Retry logic for newly created users (handles race conditions)
+          const loadUserProfile = async (retryCount = 0): Promise<void> => {
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userDoc = await getDoc(userDocRef);
+            
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              console.log('User profile loaded successfully:', userData);
+              setUser({
+                id: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                name: userData?.name || '',
+                role: userData?.role || UserRole.Viewer,
+                hasErpAccess: userData?.hasErpAccess === true, // Default to false
+                hasPayrollAccess: userData?.hasPayrollAccess === true, // Default to false
+                hasProjectsAccess: userData?.hasProjectsAccess === true, // Default to false
+              });
+              return;
+            }
+            
+            // If profile not found and this is a retry (likely new user), wait and try again
+            if (retryCount < 3) {
+              console.log(`User profile not found, retrying in ${(retryCount + 1) * 1000}ms... (attempt ${retryCount + 1}/3)`);
+              await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
+              return loadUserProfile(retryCount + 1);
+            }
+            
+            // After 3 retries, show error
+            console.error(`User profile not found in Firestore for ${firebaseUser.email} (${firebaseUser.uid}) after 3 retries`);
             console.log('Available user data from Firebase Auth:', {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               displayName: firebaseUser.displayName,
-              emailVerified: firebaseUser.emailVerified
+              emailVerified: firebaseUser.emailVerified,
+              creationTime: firebaseUser.metadata.creationTime
             });
             
-            // Give the user a chance to see the error before signing out
-            alert(`User profile not found in database for ${firebaseUser.email}. Please contact your administrator to ensure your account was set up correctly.`);
+            // Check if this is a newly created user (within last 10 seconds)
+            const isNewUser = firebaseUser.metadata.creationTime && 
+              (Date.now() - new Date(firebaseUser.metadata.creationTime).getTime()) < 10000;
+            
+            if (isNewUser) {
+              alert(`Your account was just created but there seems to be a setup delay. Please wait a moment and try logging in again.`);
+            } else {
+              alert(`User profile not found in database for ${firebaseUser.email}. Please contact your administrator to ensure your account was set up correctly.`);
+            }
             
             await signOut(auth);
             setUser(null);
-          }
+          };
+          
+          await loadUserProfile();
+          
         } catch (error) {
           console.error('Error loading user profile:', error);
           alert('Error loading user profile. Please try again or contact your administrator.');

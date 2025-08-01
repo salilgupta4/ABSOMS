@@ -65,6 +65,7 @@ const UserManagement: React.FC = () => {
         if (!canCreate && !canEdit) return;
         setSaving(true);
         
+        const isNewUser = !userData.id;
         console.log('Attempting to save user:', userData);
         
         try {
@@ -72,7 +73,19 @@ const UserManagement: React.FC = () => {
             console.log('User saved successfully:', result);
             setIsModalOpen(false);
             setEditingUser(null);
-            fetchUsers();
+            
+            if (isNewUser) {
+                alert(
+                    `User ${userData.email} has been created successfully!\n\n` +
+                    `Important: You have been automatically signed out because Firebase ` +
+                    `signs in the new user when created. The new user can now log in with ` +
+                    `their credentials.\n\n` +
+                    `You will need to log back in as an administrator.`
+                );
+            } else {
+                // For existing user updates, refresh the list
+                fetchUsers();
+            }
         } catch (error) {
             console.error("Failed to save user - detailed error:", error);
             

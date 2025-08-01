@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
@@ -30,7 +31,11 @@
       "Bash(lsof:*)",
       "Bash(npx vite:*)",
       "Bash(npm:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git commit:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(ssh:*)"
     ],
     "deny": []
   }

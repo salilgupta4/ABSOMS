@@ -66,6 +66,8 @@ export const saveUser = async (userData: UserFormData): Promise<User> => {
     } else { // Create new user
         if (!userData.password) throw new Error("Password is required for new user");
         
+        console.log(`Creating new user: ${userData.email}`);
+        
         // IMPORTANT: createUserWithEmailAndPassword signs in the new user, which will sign out the admin.
         // This is a limitation of the client-side Firebase SDK. The ideal solution is a Cloud Function.
         
@@ -76,9 +78,12 @@ export const saveUser = async (userData: UserFormData): Promise<User> => {
             throw new Error("Failed to create user in Firebase Auth.");
         }
         
+        console.log(`Firebase Auth user created: ${firebaseUser.uid}`);
+        
+        // Update the user's display name
         await updateProfile(firebaseUser, { displayName: userData.name });
 
-        // Create user profile document in Firestore
+        // Create user profile document in Firestore IMMEDIATELY
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const newUserProfile = {
             name: userData.name,
@@ -87,8 +92,19 @@ export const saveUser = async (userData: UserFormData): Promise<User> => {
             hasErpAccess: userData.hasErpAccess ?? true,
             hasPayrollAccess: userData.hasPayrollAccess ?? false,
             hasProjectsAccess: userData.hasProjectsAccess ?? false,
+            createdAt: new Date().toISOString(),
+            createdBy: 'admin'
         };
-        await setDoc(userDocRef, newUserProfile);
+        
+        console.log(`Creating Firestore profile for user: ${firebaseUser.uid}`, newUserProfile);
+        
+        // Use setDoc with merge option to ensure the document is created properly
+        await setDoc(userDocRef, newUserProfile, { merge: false });
+        
+        console.log(`Firestore profile created successfully for: ${userData.email}`);
+        
+        // Add a small delay to ensure Firestore replication is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         return { id: firebaseUser.uid, ...newUserProfile } as User;
     }
