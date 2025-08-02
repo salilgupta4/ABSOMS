@@ -91,19 +91,19 @@ const SalesOrderEditForm: React.FC = () => {
     }
 
     return (
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-4">
             <h3 className="text-2xl font-bold text-slate-800">Revise Sales Order #{order.orderNumber}</h3>
 
             <Card title="Order Details">
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label htmlFor="clientPoNumber" className="block text-sm font-medium text-slate-700">Client PO Number</label>
+                        <label htmlFor="clientPoNumber" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Client PO Number</label>
                         <input 
                           type="text" 
                           id="clientPoNumber"
                           value={clientPoNumber}
                           onChange={(e) => setClientPoNumber(e.target.value)}
-                          className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm"
+                          className="mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-slate-900 dark:text-white"
                         />
                     </div>
                     <p className="text-sm">
@@ -116,35 +116,35 @@ const SalesOrderEditForm: React.FC = () => {
 
              <Card title="Line Items">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="text-left text-slate-600">
                             <tr>
-                                <th className="p-2 w-1/3">Product</th>
-                                <th className="p-2 w-1/3">Description</th>
-                                <th className="p-2" style={{width: '120px'}}>Quantity</th>
-                                <th className="p-2" style={{width: '120px'}}>Rate</th>
-                                <th className="p-2 w-[120px] text-right">Total</th>
+                                <th className="p-1 w-1/3">Product</th>
+                                <th className="p-1 w-1/3">Description</th>
+                                <th className="p-1" style={{width: '120px'}}>Quantity</th>
+                                <th className="p-1" style={{width: '120px'}}>Rate</th>
+                                <th className="p-1 w-[120px] text-right">Total</th>
                             </tr>
                         </thead>
                         <tbody>
                             {lineItems.map(item => (
                                 <tr key={item.id} className="border-t border-slate-200 align-top">
-                                    <td className="p-2 font-medium">{item.productName}</td>
-                                    <td className="p-2">
+                                    <td className="p-1 font-medium">{item.productName}</td>
+                                    <td className="p-1">
                                         <textarea
                                             value={item.description}
                                             onChange={e => updateLineItem(item.id, 'description', e.target.value)}
-                                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded-md text-xs"
+                                            className="w-full px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-xs text-slate-900 dark:text-white"
                                             rows={2}
                                         />
                                     </td>
-                                    <td className="p-2">
-                                        <input type="number" value={item.quantity} onChange={e => updateLineItem(item.id, 'quantity', parseFloat(e.target.value))} step="0.001" className="w-24 px-2 py-1 bg-white border border-slate-300 rounded-md" />
+                                    <td className="p-1">
+                                        <input type="number" value={item.quantity} onChange={e => updateLineItem(item.id, 'quantity', parseFloat(e.target.value))} step="0.001" className="w-24 px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-white" />
                                     </td>
-                                    <td className="p-2">
-                                        <input type="number" value={item.unitPrice} onChange={e => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value))} step="0.01" className="w-24 px-2 py-1 bg-white border border-slate-300 rounded-md" />
+                                    <td className="p-1">
+                                        <input type="number" value={item.unitPrice} onChange={e => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value))} step="0.01" className="w-24 px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-white" />
                                     </td>
-                                    <td className="p-2 text-right font-semibold">₹{item.total.toFixed(2)}</td>
+                                    <td className="p-1 text-right font-semibold">₹{item.total.toFixed(2)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -160,7 +160,7 @@ const SalesOrderEditForm: React.FC = () => {
                 </div>
              </Card>
 
-             <div className="flex justify-end space-x-3 bg-white p-4 sticky bottom-0 border-t border-slate-200 -mx-6 -mb-8 rounded-b-lg">
+             <div className="flex justify-end space-x-3 bg-white dark:bg-slate-800 p-4 sticky bottom-0 border-t border-slate-200 dark:border-slate-700 -mx-6 -mb-8 rounded-b-lg">
                 <Button type="button" variant="secondary" onClick={() => navigate('/sales/orders')} disabled={saving}>Cancel</Button>
                 <Button type="submit" disabled={saving} icon={saving ? <Loader size={16} className="animate-spin" /> : null}>
                     {saving ? 'Saving Revision...' : 'Save and Revise'}

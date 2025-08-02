@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
-const { Outlet, useLocation } = ReactRouterDOM;
+const { Outlet, useLocation, useNavigate } = ReactRouterDOM;
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ const Layout: React.FC = () => {
   const { user } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Close sidebar on route change on mobile
@@ -38,6 +39,58 @@ const Layout: React.FC = () => {
       }
     };
   }, [user]);
+
+  // Global keyboard shortcuts for module navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when not in input fields
+      const target = e.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.contentEditable === 'true';
+      
+      if (isInputField) return;
+
+      // Module navigation shortcuts (Alt/Option + number for Mac/Windows compatibility)
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        const moduleShortcuts: { [key: string]: string } = {
+          '1': '/dashboard',
+          '2': '/sales/quotes',
+          '3': '/sales/orders', 
+          '4': '/sales/deliveries',
+          '5': '/purchase/orders',
+          '6': '/customers',
+          '7': '/products',
+          '8': '/settings',
+        };
+
+        if (moduleShortcuts[e.key]) {
+          e.preventDefault();
+          navigate(moduleShortcuts[e.key]);
+        }
+      }
+
+      // Additional shortcuts for Mac (Cmd) and Windows (Ctrl)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+        const combinedShortcuts: { [key: string]: string } = {
+          'D': '/dashboard',
+          'Q': '/sales/quotes',
+          'S': '/sales/orders',
+          'L': '/sales/deliveries', // 'L' for delivery/logistics
+          'P': '/purchase/orders',
+          'C': '/customers',
+          'R': '/products', // 'R' for products/resources
+          'T': '/settings', // 'T' for settings/tools
+        };
+
+        if (combinedShortcuts[e.key.toUpperCase()]) {
+          e.preventDefault();
+          navigate(combinedShortcuts[e.key.toUpperCase()]);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
 
   return (
     <div className="flex h-screen bg-slate-100 dark:bg-slate-800">

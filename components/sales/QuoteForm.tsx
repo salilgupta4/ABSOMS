@@ -259,11 +259,11 @@ const QuoteForm: React.FC = () => {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
             <Card title={isEditing ? 'Edit Quote' : 'New Quote'}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Customer</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Customer</label>
                         <SearchableSelect
                             value={customerId}
                             onChange={setCustomerId}
@@ -272,7 +272,7 @@ const QuoteForm: React.FC = () => {
                         />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Contact Person</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Contact Person</label>
                          <SearchableSelect
                             value={contactId}
                             onChange={setContactId}
@@ -282,7 +282,7 @@ const QuoteForm: React.FC = () => {
                         />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Shipping Address</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Shipping Address</label>
                         <SearchableSelect
                             value={shippingAddressId}
                             onChange={setShippingAddressId}
@@ -292,7 +292,7 @@ const QuoteForm: React.FC = () => {
                         />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Point of Contact</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Point of Contact</label>
                         <SearchableSelect
                             value={pointOfContactId}
                             onChange={setPointOfContactId}
@@ -304,7 +304,7 @@ const QuoteForm: React.FC = () => {
                         />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Expiry Date</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Expiry Date</label>
                         <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm"/>
                     </div>
                 </div>
@@ -312,36 +312,36 @@ const QuoteForm: React.FC = () => {
 
             <Card title="Line Items">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="text-left text-slate-600 dark:text-slate-400">
                             <tr>
-                                <th className="p-2 w-1/3">Product</th>
-                                <th className="p-2 w-1/3">Description</th>
-                                <th className="p-2" style={{width: '120px'}}>Quantity</th>
-                                <th className="p-2" style={{width: '120px'}}>Rate</th>
-                                <th className="p-2" style={{width: '130px', textAlign: 'right'}}>Total</th>
-                                <th className="p-2"></th>
+                                <th className="p-1 w-1/3">Product</th>
+                                <th className="p-1 w-1/3">Description</th>
+                                <th className="p-1" style={{width: '120px'}}>Quantity</th>
+                                <th className="p-1" style={{width: '120px'}}>Rate</th>
+                                <th className="p-1" style={{width: '130px', textAlign: 'right'}}>Total</th>
+                                <th className="p-1"></th>
                             </tr>
                         </thead>
                         <tbody>
                             {lineItems.map(item => (
                                 <tr key={item.id} className="border-t border-slate-200 dark:border-slate-700 align-top">
-                                    <td className="p-2 font-medium">{item.productName}</td>
-                                    <td className="p-2">
+                                    <td className="p-1 font-medium">{item.productName}</td>
+                                    <td className="p-1">
                                         <textarea
                                             value={item.description}
                                             onChange={e => updateLineItem(item.id, 'description', e.target.value)}
-                                            className="w-full px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-xs"
-                                            rows={2}
+                                            className="w-full px-1 py-0.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-xs"
+                                            rows={1}
                                         />
                                     </td>
-                                    <td className="p-2">
+                                    <td className="p-1">
                                         <div className="flex items-center space-x-2">
                                             <input type="number" value={item.quantity} onChange={e => updateLineItem(item.id, 'quantity', parseFloat(e.target.value))} step="0.001" className="w-20 px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" />
                                             <span>{item.unit}</span>
                                         </div>
                                     </td>
-                                    <td className="p-2">
+                                    <td className="p-1">
                                        <input 
                                             type="number"
                                             value={item.unitPrice}
@@ -369,7 +369,7 @@ const QuoteForm: React.FC = () => {
                 </div>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                  <Card title="Terms & Conditions">
                     <div className="space-y-2">
                         <p className="text-xs text-slate-500 mb-2">Select predefined terms:</p>

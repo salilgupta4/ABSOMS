@@ -93,13 +93,13 @@ const DeliveryOrderEditForm: React.FC = () => {
     }
 
     return (
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-4">
             <h3 className="text-2xl font-bold text-slate-800">Edit Delivery Order #{order.deliveryNumber}</h3>
 
             <Card title="Dispatch Details">
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                        <label htmlFor="deliveryDate" className="block text-sm font-medium text-slate-700">Delivery Date</label>
+                        <label htmlFor="deliveryDate" className="block text-xs font-medium text-slate-700 mb-1">Delivery Date</label>
                         <input
                             type="date"
                             id="deliveryDate"
@@ -111,7 +111,7 @@ const DeliveryOrderEditForm: React.FC = () => {
                         />
                     </div>
                     <div>
-                        <label htmlFor="vehicleNumber" className="block text-sm font-medium text-slate-700">Delivery Vehicle Number</label>
+                        <label htmlFor="vehicleNumber" className="block text-xs font-medium text-slate-700 mb-1">Delivery Vehicle Number</label>
                         <input
                             type="text"
                             id="vehicleNumber"
@@ -123,7 +123,7 @@ const DeliveryOrderEditForm: React.FC = () => {
                         />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700">Contact Person</label>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Contact Person</label>
                         <select 
                             name="contactId"
                             value={order.contactId} 
@@ -141,7 +141,7 @@ const DeliveryOrderEditForm: React.FC = () => {
             <Card title="Our Point of Contact (Optional)">
                 <div className="p-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Our Point of Contact</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Our Point of Contact</label>
                         <SearchableSelect
                             value={order.pointOfContactId || ''}
                             onChange={(value) => setOrder({ ...order, pointOfContactId: value || undefined })}
@@ -170,18 +170,18 @@ const DeliveryOrderEditForm: React.FC = () => {
 
             <Card title="Line Items (Read-only)">
                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="text-left text-slate-600">
                             <tr>
-                                <th className="p-2">Product</th>
-                                <th className="p-2 text-center">Quantity Delivered</th>
+                                <th className="p-1">Product</th>
+                                <th className="p-1 text-center">Quantity Delivered</th>
                             </tr>
                         </thead>
                         <tbody>
                             {order.lineItems.map(item => (
                                 <tr key={item.id} className="border-t">
-                                    <td className="p-2 font-medium">{item.productName}</td>
-                                    <td className="p-2 text-center">{item.quantity} {item.unit}</td>
+                                    <td className="p-1 font-medium">{item.productName}</td>
+                                    <td className="p-1 text-center">{item.quantity} {item.unit}</td>
                                 </tr>
                             ))}
                         </tbody>

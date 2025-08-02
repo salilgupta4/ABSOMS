@@ -213,7 +213,7 @@ const CustomerList: React.FC = () => {
     }, [customers, searchTerm, sortConfig]);
     
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
-        <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(sortKey)}>
+        <th scope="col" className="px-4 py-2 cursor-pointer" onClick={() => requestSort(sortKey)}>
             <div className="flex items-center">
                 {children}
                 <ArrowUpDown size={14} className="ml-2 opacity-50"/>
@@ -262,8 +262,8 @@ const CustomerList: React.FC = () => {
                                 <SortableHeader sortKey="name">Customer Name</SortableHeader>
                                 <SortableHeader sortKey="gstin">GSTIN</SortableHeader>
                                 <SortableHeader sortKey="primaryContactName">Primary Contact</SortableHeader>
-                                <th scope="col" className="px-6 py-3">Email</th>
-                                {(canEdit || canDelete) && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
+                                <th scope="col" className="px-4 py-2">Email</th>
+                                {(canEdit || canDelete) && <th scope="col" className="px-4 py-2 text-right">Actions</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -273,12 +273,12 @@ const CustomerList: React.FC = () => {
 
                                 return (
                                     <tr key={customer.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600">
-                                        <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{customer.name}</td>
-                                        <td className="px-6 py-4">{customer.gstin}</td>
-                                        <td className="px-6 py-4">{primaryContactName}</td>
-                                        <td className="px-6 py-4">{primaryContactEmail}</td>
+                                        <td className="px-4 py-2 font-medium text-slate-900 dark:text-white">{customer.name}</td>
+                                        <td className="px-4 py-2">{customer.gstin}</td>
+                                        <td className="px-4 py-2">{primaryContactName}</td>
+                                        <td className="px-4 py-2">{primaryContactEmail}</td>
                                         {(canEdit || canDelete) && (
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-4 py-2 text-right">
                                                 <div className="flex items-center justify-end space-x-1">
                                                     {canEdit && <Link to={`/customers/${customer.id}/edit`} className="p-2 text-primary hover:bg-primary-light dark:hover:bg-slate-700 rounded-full transition-colors">
                                                         <Edit size={16} />
@@ -294,7 +294,7 @@ const CustomerList: React.FC = () => {
                             })}
                             {sortedAndFilteredCustomers.length === 0 && (
                                 <tr className="bg-white dark:bg-slate-800 border-b dark:border-slate-700">
-                                    <td colSpan={isViewer ? 4 : 5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                                    <td colSpan={isViewer ? 4 : 5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-sm">
                                         No customers found. 
                                         {!isViewer && <Link to="/customers/new" className="text-primary hover:underline"> Add the first one!</Link>}
                                     </td>

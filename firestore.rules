@@ -110,6 +110,16 @@ service cloud.firestore {
       allow read, write: if hasPayrollAccess();
     }
     
+    match /payroll_leaves/{document} {
+      allow read: if hasPayrollAccess();
+      allow create: if hasPayrollAccess();
+      allow update: if hasPayrollAccess() && 
+                       (isCurrentUserAdmin() || 
+                        !('status' in request.resource.data) || 
+                        request.resource.data.status == resource.data.status);
+      allow delete: if isCurrentUserAdmin();
+    }
+    
     // Projects modules - Admin or users with Projects access
     match /projects_module/{document} {
       allow read, write: if hasProjectsAccess();

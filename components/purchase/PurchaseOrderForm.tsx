@@ -163,11 +163,11 @@ const PurchaseOrderForm: React.FC = () => {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
             <Card title={isEditing ? 'Edit Purchase Order' : 'New Purchase Order'}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Vendor</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Vendor</label>
                         <SearchableSelect
                             value={vendorId}
                             onChange={setVendorId}
@@ -176,7 +176,7 @@ const PurchaseOrderForm: React.FC = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Point of Contact</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Point of Contact</label>
                         <SearchableSelect
                             value={pointOfContactId}
                             onChange={setPointOfContactId}
@@ -188,40 +188,40 @@ const PurchaseOrderForm: React.FC = () => {
                         />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Order Date</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Order Date</label>
                         <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm"/>
                     </div>
                 </div>
                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Deliver To Address</label>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Deliver To Address</label>
                     <textarea 
                         value={deliveryAddress} 
                         onChange={e => setDeliveryAddress(e.target.value)} 
                         rows={3} 
                         required 
-                        className="mt-1 block w-full p-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-sm"
+                        className="mt-1 block w-full p-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-sm"
                     />
                 </div>
             </Card>
 
             <Card title="Line Items">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="text-left text-slate-600 dark:text-slate-400">
                             <tr>
-                                <th className="p-2 w-1/3">Product</th>
-                                <th className="p-2 w-1/3">Description</th>
-                                <th className="p-2" style={{width: '120px'}}>Quantity</th>
-                                <th className="p-2" style={{width: '120px'}}>Rate</th>
-                                <th className="p-2 text-right" style={{width: '130px'}}>Total</th>
-                                <th className="p-2"></th>
+                                <th className="p-1 w-1/3">Product</th>
+                                <th className="p-1 w-1/3">Description</th>
+                                <th className="p-1" style={{width: '120px'}}>Quantity</th>
+                                <th className="p-1" style={{width: '120px'}}>Rate</th>
+                                <th className="p-1 text-right" style={{width: '130px'}}>Total</th>
+                                <th className="p-1"></th>
                             </tr>
                         </thead>
                         <tbody>
                             {lineItems.map(item => (
                                 <tr key={item.id} className="border-t border-slate-200 dark:border-slate-700 align-top">
-                                    <td className="p-2 font-medium">{item.productName}</td>
-                                    <td className="p-2">
+                                    <td className="p-1 font-medium">{item.productName}</td>
+                                    <td className="p-1">
                                         <textarea
                                             value={item.description}
                                             onChange={e => updateLineItem(item.id, 'description', e.target.value)}
@@ -229,17 +229,17 @@ const PurchaseOrderForm: React.FC = () => {
                                             rows={2}
                                         />
                                     </td>
-                                    <td className="p-2">
+                                    <td className="p-1">
                                         <div className="flex items-center space-x-2">
                                             <input type="number" value={item.quantity} onChange={e => updateLineItem(item.id, 'quantity', parseFloat(e.target.value))} step="0.001" className="w-20 px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" />
                                             <span>{item.unit}</span>
                                         </div>
                                     </td>
-                                     <td className="p-2">
+                                     <td className="p-1">
                                         <input type="number" value={item.unitPrice} step="0.01" onChange={e => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value))} className="w-24 px-2 py-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" />
                                     </td>
-                                    <td className="p-2 text-right font-semibold">₹{item.total.toFixed(2)}</td>
-                                    <td className="p-2 text-center">
+                                    <td className="p-1 text-right font-semibold">₹{item.total.toFixed(2)}</td>
+                                    <td className="p-1 text-center">
                                         <button type="button" onClick={() => removeLineItem(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
                                     </td>
                                 </tr>
@@ -258,7 +258,7 @@ const PurchaseOrderForm: React.FC = () => {
             </Card>
 
             <Card title="Additional Description / Notes">
-                <textarea value={additionalDescription} onChange={e => setAdditionalDescription(e.target.value)} rows={5} className="w-full p-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-sm" placeholder="Add any special notes or instructions for the vendor..."></textarea>
+                <textarea value={additionalDescription} onChange={e => setAdditionalDescription(e.target.value)} rows={3} className="w-full p-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-xs" placeholder="Add any special notes or instructions for the vendor..."></textarea>
             </Card>
             
              <Card title="Summary">

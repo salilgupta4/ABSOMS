@@ -3,16 +3,25 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { Plus, Edit, Trash2, ArrowUpDown, Check, X } from 'lucide-react';
-import { LeaveRequest, PayrollEmployee } from '@/types';
+import { LeaveRequest, PayrollEmployee, UserRole } from '@/types';
 import { getLeaveRequests, saveLeaveRequest, updateLeaveRequestStatus, deleteLeaveRequest, getPayrollEmployees } from '@/services/payrollService';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import { useAuth } from '@/contexts/AuthContext';
 
 const LeaveManagement: React.FC = () => {
+    const { user } = useAuth();
     const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
     const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingLeave, setEditingLeave] = useState<Partial<LeaveRequest>>({});
+    
+    const isAdmin = user?.role === UserRole.Admin;
+
+    // Debug logging
+    console.log('LeaveManagement - Current user:', user);
+    console.log('LeaveManagement - Is admin:', isAdmin);
+    console.log('LeaveManagement - User role:', user?.role);
 
     const fetchData = () => {
         setLoading(true);
@@ -22,6 +31,7 @@ const LeaveManagement: React.FC = () => {
                     ...leave,
                     employeeName: empData.find(e => e.id === leave.employee_id)?.name || 'Unknown'
                 }));
+                console.log('LeaveManagement - Loaded leaves:', enrichedLeaves);
                 setLeaves(enrichedLeaves as any);
                 setEmployees(empData);
             })
@@ -32,6 +42,29 @@ const LeaveManagement: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, []);
+    
+    // Utility function to fix existing leave records without status
+    const fixExistingLeaveStatuses = async () => {
+        try {
+            const leavesToFix = leaves.filter(leave => !leave.status);
+            if (leavesToFix.length > 0) {
+                console.log('Fixing', leavesToFix.length, 'leave records without status');
+                for (const leave of leavesToFix) {
+                    await saveLeaveRequest({ ...leave, status: 'pending' });
+                }
+                fetchData(); // Reload data after fixing
+            }
+        } catch (error) {
+            console.error('Error fixing leave statuses:', error);
+        }
+    };
+    
+    // Fix existing records on component mount
+    useEffect(() => {
+        if (leaves.length > 0 && isAdmin) {
+            fixExistingLeaveStatuses();
+        }
+    }, [leaves.length, isAdmin]);
 
     const handleAdd = () => {
         setEditingLeave({});
@@ -108,16 +141,16 @@ const LeaveManagement: React.FC = () => {
                                     <td className="p-2 capitalize">{leave.leave_type}</td>
                                     <td className="p-2">{new Date(leave.start_date).toLocaleDateString()} - {new Date(leave.end_date).toLocaleDateString()}</td>
                                     <td className="p-2 text-center">{leave.total_days}</td>
-                                    <td className="p-2 text-center"><span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[leave.status]}`}>{leave.status}</span></td>
+                                    <td className="p-2 text-center"><span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[leave.status || 'pending']}`}>{leave.status || 'pending'}</span></td>
                                     <td className="p-2 text-right">
-                                        {leave.status === 'pending' && (
+                                        {isAdmin && (leave.status === 'pending' || !leave.status) && (
                                             <>
                                                 <button onClick={() => handleStatusUpdate(leave.id, 'approved')} className="p-2 text-green-600"><Check /></button>
                                                 <button onClick={() => handleStatusUpdate(leave.id, 'rejected')} className="p-2 text-red-600"><X /></button>
                                             </>
                                         )}
                                         <button onClick={() => handleEdit(leave)} className="p-2"><Edit /></button>
-                                        <button onClick={() => handleDelete(leave.id)} className="p-2"><Trash2 /></button>
+                                        {isAdmin && <button onClick={() => handleDelete(leave.id)} className="p-2"><Trash2 /></button>}
                                     </td>
                                 </tr>
                             ))}

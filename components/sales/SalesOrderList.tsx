@@ -15,6 +15,9 @@ import { db, Timestamp, DocumentSnapshot } from '@/services/firebase';
 import { collection, query, orderBy, getDocs, doc, getDoc, updateDoc, writeBatch, addDoc, deleteDoc, where } from 'firebase/firestore';
 import { getCompanyDetails } from '@/components/settings/CompanyDetails';
 import { getEmailService } from '@/services/emailService';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useSearchableList } from '@/hooks/useSearchableList';
+import SearchableInput from '@/components/ui/SearchableInput';
 
 // --- FIRESTORE DATA SERVICE ---
 const processDoc = (docSnap: DocumentSnapshot): SalesOrder => {
@@ -182,6 +185,29 @@ const SalesOrderList: React.FC = () => {
     const canCreate = canPerformAction(user, 'create');
     const canEdit = canPerformAction(user, 'edit');
     const canDelete = canPerformAction(user, 'delete');
+    
+    const { searchInputRef } = useKeyboardShortcuts({
+        newItemPath: '/sales/orders/new',
+        canCreate,
+        searchTerm,
+        setSearchTerm
+    });
+    
+    const {
+        filteredItems: searchResults,
+        selectedIndex,
+        showResults,
+        handleInputFocus,
+        handleInputChange,
+        selectItem
+    } = useSearchableList({
+        items: orders,
+        searchTerm,
+        setSearchTerm,
+        getItemId: (order) => order.id,
+        getItemUrl: (order) => `/sales/orders/${order.id}/view`,
+        searchFields: ['orderNumber', 'customerName', 'clientPoNumber']
+    });
 
     const fetchOrders = async () => {
         setLoading(true);
@@ -285,7 +311,7 @@ const SalesOrderList: React.FC = () => {
     }, [orders, pointsOfContact, searchTerm, sortConfig, statusFilter]);
 
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
-        <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(sortKey)}>
+        <th scope="col" className="px-4 py-2 cursor-pointer" onClick={() => requestSort(sortKey)}>
             <div className="flex items-center">
                 {children}
                 <ArrowUpDown size={14} className="ml-2 opacity-50"/>
@@ -295,18 +321,34 @@ const SalesOrderList: React.FC = () => {
 
     return (
         <Card title="Sales Orders" bodyClassName="">
-             <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-4 items-center">
-                <input
-                    type="text"
-                    placeholder="Filter by SO#, PO#, or customer..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full sm:w-1/3 px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm"
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-3 items-center">
+                <SearchableInput
+                    searchInputRef={searchInputRef}
+                    searchTerm={searchTerm}
+                    placeholder="Search sales orders... (Press '/' to focus, ↑↓ to navigate, ↵ to select)"
+                    filteredItems={searchResults}
+                    selectedIndex={selectedIndex}
+                    showResults={showResults}
+                    onInputChange={handleInputChange}
+                    onInputFocus={handleInputFocus}
+                    onItemSelect={selectItem}
+                    className="w-full sm:w-1/3"
+                    renderItem={(order, index, isSelected) => (
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <div className="font-medium">{order.orderNumber}</div>
+                                <div className="text-xs opacity-75">{order.customerName}</div>
+                            </div>
+                            <div className="text-xs opacity-60">
+                                ₹{order.total.toLocaleString()}
+                            </div>
+                        </div>
+                    )}
                 />
                 <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full sm:w-auto px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
+                    className="w-full sm:w-auto px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm text-sm"
                 >
                     <option value="all">All Statuses</option>
                     <option value="open">All Open</option>
@@ -329,30 +371,30 @@ const SalesOrderList: React.FC = () => {
                                 <SortableHeader sortKey="orderDate">Date</SortableHeader>
                                 <SortableHeader sortKey="total">Total</SortableHeader>
                                 <SortableHeader sortKey="status">Status</SortableHeader>
-                                <th className="px-6 py-3 text-right">Actions</th>
+                                <th className="px-4 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {sortedAndFilteredOrders.map(o => (
                                 <tr key={o.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600">
-                                    <td className="px-6 py-4 font-bold">
+                                    <td className="px-4 py-2 font-bold">
                                         <Link to={`/sales/orders/${o.id}/view`} className="text-primary hover:underline">{o.orderNumber}</Link>
                                     </td>
-                                    <td className="px-6 py-4">{o.clientPoNumber}</td>
-                                    <td className="px-6 py-4">{o.customerName}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`text-sm ${!o.pointOfContactId ? 'text-slate-400 italic' : ''}`}>
+                                    <td className="px-4 py-2">{o.clientPoNumber}</td>
+                                    <td className="px-4 py-2">{o.customerName}</td>
+                                    <td className="px-4 py-2">
+                                        <span className={`text-xs ${!o.pointOfContactId ? 'text-slate-400 italic' : ''}`}>
                                             {getPointOfContactName(o.pointOfContactId)}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4">{new Date(o.orderDate).toLocaleDateString('en-GB')}</td>
-                                    <td className="px-6 py-4">₹{o.total.toFixed(2)}</td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-4 py-2">{new Date(o.orderDate).toLocaleDateString('en-GB')}</td>
+                                    <td className="px-4 py-2">₹{o.total.toFixed(2)}</td>
+                                    <td className="px-4 py-2">
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[o.status] || 'bg-gray-100'}`}>
                                             {o.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-right">
+                                    <td className="px-4 py-2 text-right">
                                         <div className="flex items-center justify-end space-x-2">
                                             <Link to={`/sales/orders/${o.id}/view`} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full"><Eye size={16} /></Link>
                                             {(o.status === DocumentStatus.Approved || o.status === DocumentStatus.Partial) && (
@@ -370,7 +412,7 @@ const SalesOrderList: React.FC = () => {
                             ))}
                             {sortedAndFilteredOrders.length === 0 && (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                                    <td colSpan={8} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-sm">
                                         No sales orders found. Approved quotes can be converted here.
                                     </td>
                                 </tr>

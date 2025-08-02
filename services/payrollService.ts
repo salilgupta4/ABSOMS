@@ -279,8 +279,14 @@ export const saveLeaveRequest = async (leaveData: Omit<LeaveRequest, 'id'> & {id
         await updateDoc(docRef, dataToSave);
         return { id, ...dataToSave } as LeaveRequest;
     } else {
-        const docRef = await addDoc(leaveRequestsCollection, { ...dataToSave, created_at: Timestamp.now() });
-        return { id: docRef.id, ...dataToSave } as LeaveRequest;
+        // Set default status to 'pending' for new leave requests
+        const newLeaveData = { 
+            ...dataToSave, 
+            status: dataToSave.status || 'pending',
+            created_at: Timestamp.now() 
+        };
+        const docRef = await addDoc(leaveRequestsCollection, newLeaveData);
+        return { id: docRef.id, ...newLeaveData } as LeaveRequest;
     }
 };
 
@@ -377,6 +383,7 @@ const defaultSettings: PayrollSettings = {
     esi_percentage: 1.75,
     pt_amount: 200,
     tds_percentage: 0,
+    tds_annual_limit: 250000, // TDS applicable only for annual salary above ₹2.5L
     hra_percentage: 20,
     special_allowance_percentage: 30,
     basic_pay_percentage: 50,

@@ -58,12 +58,12 @@ const SalesOrderForm: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <h3 className="text-2xl font-bold text-slate-800">Convert Quote to Sales Order</h3>
 
             <Card title={`Reviewing Quote #${quote.quoteNumber}`}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
                         <p><strong>Customer:</strong> {quote.customerName}</p>
                         <p><strong>Quote Date:</strong> {new Date(quote.issueDate).toLocaleDateString()}</p>
                         <p><strong>Contact:</strong> {quote.contactName}</p>
@@ -71,7 +71,7 @@ const SalesOrderForm: React.FC = () => {
                         <p className="font-bold text-lg">Total: ₹{quote.total.toFixed(2)}</p>
                     </div>
                      <div>
-                        <label htmlFor="clientPoNumber" className="block text-sm font-medium text-slate-700">Client PO Number</label>
+                        <label htmlFor="clientPoNumber" className="block text-xs font-medium text-slate-700 mb-1">Client PO Number</label>
                         <input 
                           type="text" 
                           id="clientPoNumber"
@@ -84,14 +84,14 @@ const SalesOrderForm: React.FC = () => {
             </Card>
 
             <Card title="Line Items">
-                <table className="w-full text-sm">
-                    <thead><tr><th className="text-left p-2">Product</th><th className="p-2">Qty</th><th className="text-right p-2">Total</th></tr></thead>
+                <table className="w-full text-xs">
+                    <thead><tr><th className="text-left p-1">Product</th><th className="p-1">Qty</th><th className="text-right p-1">Total</th></tr></thead>
                     <tbody>
                         {quote.lineItems.map(item => (
                             <tr key={item.productId} className="border-t">
-                                <td className="p-2">{item.productName}</td>
-                                <td className="p-2 text-center">{item.quantity} {item.unit}</td>
-                                <td className="p-2 text-right">₹{item.total.toFixed(2)}</td>
+                                <td className="p-1">{item.productName}</td>
+                                <td className="p-1 text-center">{item.quantity} {item.unit}</td>
+                                <td className="p-1 text-right">₹{item.total.toFixed(2)}</td>
                             </tr>
                         ))}
                     </tbody>

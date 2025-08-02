@@ -102,13 +102,13 @@ const DeliveryOrderForm: React.FC = () => {
     const isSubmittable = Object.values(deliveryQuantities).some(qty => Number(qty) > 0);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Create Delivery from SO #{order.orderNumber}</h3>
             
              <Card title="Shipping Details">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Shipping Address</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Shipping Address</label>
                         <SearchableSelect
                             value={shippingAddressId}
                             onChange={setShippingAddressId}
@@ -116,7 +116,7 @@ const DeliveryOrderForm: React.FC = () => {
                         />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Contact Person</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Contact Person</label>
                         <SearchableSelect
                             value={contactId}
                             onChange={setContactId}
@@ -124,7 +124,7 @@ const DeliveryOrderForm: React.FC = () => {
                         />
                     </div>
                     <div>
-                        <label htmlFor="vehicleNumber" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Delivery Vehicle Number</label>
+                        <label htmlFor="vehicleNumber" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Delivery Vehicle Number</label>
                         <input
                             type="text"
                             id="vehicleNumber"
@@ -140,14 +140,14 @@ const DeliveryOrderForm: React.FC = () => {
             <Card title="Items to Deliver">
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Enter the quantity to deliver for each item. You cannot deliver more than the remaining quantity.</p>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="text-left text-slate-600 dark:text-slate-400">
                             <tr>
-                                <th className="p-2 w-2/5">Product</th>
-                                <th className="p-2 text-center">Ordered</th>
-                                <th className="p-2 text-center">Delivered</th>
-                                <th className="p-2 text-center">Remaining</th>
-                                <th className="p-2 w-1/5 text-center font-bold">Deliver Now</th>
+                                <th className="p-1 w-2/5">Product</th>
+                                <th className="p-1 text-center">Ordered</th>
+                                <th className="p-1 text-center">Delivered</th>
+                                <th className="p-1 text-center">Remaining</th>
+                                <th className="p-1 w-1/5 text-center font-bold">Deliver Now</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -158,11 +158,11 @@ const DeliveryOrderForm: React.FC = () => {
 
                                 return (
                                     <tr key={item.id} className="border-t dark:border-slate-700">
-                                        <td className="p-2 font-medium">{item.productName}</td>
-                                        <td className="p-2 text-center">{item.quantity} {item.unit}</td>
-                                        <td className="p-2 text-center">{delivered} {item.unit}</td>
-                                        <td className="p-2 text-center font-semibold">{remaining} {item.unit}</td>
-                                        <td className="p-2 text-center">
+                                        <td className="p-1 font-medium">{item.productName}</td>
+                                        <td className="p-1 text-center">{item.quantity} {item.unit}</td>
+                                        <td className="p-1 text-center">{delivered} {item.unit}</td>
+                                        <td className="p-1 text-center font-semibold">{remaining} {item.unit}</td>
+                                        <td className="p-1 text-center">
                                             <input 
                                                 type="number" 
                                                 min="0"
@@ -186,7 +186,7 @@ const DeliveryOrderForm: React.FC = () => {
                     value={additionalDescription} 
                     onChange={e => setAdditionalDescription(e.target.value)} 
                     rows={4} 
-                    className="w-full p-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-sm" 
+                    className="w-full p-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-sm" 
                     placeholder="Add any special delivery notes or instructions..."></textarea>
             </Card>
 

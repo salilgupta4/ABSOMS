@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Bell, UserCircle, ChevronDown, Sun, Moon, LogOut, Settings, Menu, ChevronRight, Home } from 'lucide-react';
+import { Bell, UserCircle, ChevronDown, Sun, Moon, LogOut, Settings, Menu, ChevronRight, Home, Keyboard } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,6 +20,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const pathnames = location.pathname.split('/').filter(x => x);
@@ -90,6 +91,26 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Handle keyboard shortcut to show help (? key)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const target = e.target as HTMLElement;
+        const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.contentEditable === 'true';
+        if (!isInputField) {
+          e.preventDefault();
+          setShortcutsModalOpen(true);
+        }
+      }
+      if (e.key === 'Escape' && shortcutsModalOpen) {
+        setShortcutsModalOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [shortcutsModalOpen]);
+
   return (
     <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 shrink-0">
       <div className="flex items-center space-x-4">
@@ -108,6 +129,13 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </nav>
       </div>
       <div className="flex items-center space-x-6">
+        <button 
+          onClick={() => setShortcutsModalOpen(true)} 
+          className="relative text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white"
+          title="Keyboard shortcuts (?)"
+        >
+          <Keyboard size={22} />
+        </button>
         <button onClick={toggleTheme} className="relative text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white">
           {theme === 'light' ? <Sun size={22} /> : <Moon size={22} />}
         </button>
@@ -138,6 +166,89 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             )}
         </div>
       </div>
+
+      {/* Keyboard Shortcuts Modal */}
+      {shortcutsModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 max-w-xl w-full mx-4 max-h-[75vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Keyboard Shortcuts</h2>
+              <button 
+                onClick={() => setShortcutsModalOpen(false)}
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium text-slate-900 dark:text-white mb-2 text-sm">Module Navigation</h3>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Dashboard</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+1</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Quotes</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+2</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Sales Orders</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+3</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Deliveries</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+4</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Purchase Orders</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+5</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Customers</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+6</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Products</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+7</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Settings</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Alt+8</kbd>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-medium text-slate-900 dark:text-white mb-2 text-sm">General</h3>
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Focus Search</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">/</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">New Item</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Ctrl+N</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Show Help</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">?</kbd>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 dark:text-slate-300">Close Modal</span>
+                    <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-xs">Esc</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+              <p><strong>Note:</strong> On Mac, use Cmd+Shift instead of Ctrl+Shift. Alternative: Ctrl+Shift+Q for Quotes, Ctrl+Shift+S for Sales Orders, etc.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

@@ -105,6 +105,22 @@ const PayrollSettingsComponent: React.FC = () => {
                                 <input type="number" name="tds_percentage" value={settings.tds_percentage || ''} onChange={handlePercentageChange} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" disabled={!settings.tds_enabled}/>
                             </div>
                         </div>
+                        <div className="grid grid-cols-2 gap-4 items-center">
+                           <div></div>
+                           <div>
+                                <label>TDS Annual Salary Limit (₹)</label>
+                                <input 
+                                    type="number" 
+                                    name="tds_annual_limit" 
+                                    value={settings.tds_annual_limit || ''} 
+                                    onChange={handlePercentageChange} 
+                                    className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" 
+                                    disabled={!settings.tds_enabled}
+                                    placeholder="250000"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">TDS will only apply to employees whose annual salary exceeds this amount</p>
+                            </div>
+                        </div>
                     </div>
                 </Card>
                 <div className="text-right">

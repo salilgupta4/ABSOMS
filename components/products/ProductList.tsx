@@ -138,7 +138,7 @@ const ProductList: React.FC = () => {
     }, [products, searchTerm, sortConfig]);
     
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
-        <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => requestSort(sortKey)}>
+        <th scope="col" className="px-4 py-2 cursor-pointer" onClick={() => requestSort(sortKey)}>
             <div className="flex items-center">
                 {children}
                 <ArrowUpDown size={14} className="ml-2 opacity-50"/>
@@ -188,18 +188,18 @@ const ProductList: React.FC = () => {
                                 <SortableHeader sortKey="hsnCode">HSN Code</SortableHeader>
                                 <SortableHeader sortKey="unit">Unit</SortableHeader>
                                 <SortableHeader sortKey="rate">Rate</SortableHeader>
-                                {!isViewer && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
+                                {!isViewer && <th scope="col" className="px-4 py-2 text-right">Actions</th>}
                             </tr>
                         </thead>
                         <tbody>
                             {sortedAndFilteredProducts.map((product) => (
                                 <tr key={product.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600">
-                                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{product.name}</td>
-                                    <td className="px-6 py-4">{product.hsnCode}</td>
-                                    <td className="px-6 py-4">{product.unit}</td>
-                                    <td className="px-6 py-4">₹{product.rate.toFixed(2)}</td>
+                                    <td className="px-4 py-2 font-medium text-slate-900 dark:text-white">{product.name}</td>
+                                    <td className="px-4 py-2">{product.hsnCode}</td>
+                                    <td className="px-4 py-2">{product.unit}</td>
+                                    <td className="px-4 py-2">₹{product.rate.toFixed(2)}</td>
                                     {!isViewer && (
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-4 py-2 text-right">
                                             <div className="flex items-center justify-end space-x-1">
                                                 <Link to={`/products/${product.id}/edit`} className="p-2 text-primary hover:bg-primary-light dark:hover:bg-slate-700 rounded-full transition-colors">
                                                     <Edit size={16} />
@@ -214,7 +214,7 @@ const ProductList: React.FC = () => {
                             ))}
                             {sortedAndFilteredProducts.length === 0 && (
                                 <tr className="bg-white dark:bg-slate-800 border-b dark:border-slate-700">
-                                    <td colSpan={isViewer ? 4 : 5} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                                    <td colSpan={isViewer ? 4 : 5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-sm">
                                         No products found. 
                                         {!isViewer && <Link to="/products/new" className="text-primary hover:underline">Add the first one!</Link>}
                                     </td>

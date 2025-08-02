@@ -441,6 +441,7 @@ export interface PayrollSettings {
   esi_percentage: number;
   pt_amount: number;
   tds_percentage: number;
+  tds_annual_limit: number;
   hra_percentage: number;
   special_allowance_percentage: number;
   basic_pay_percentage: number;

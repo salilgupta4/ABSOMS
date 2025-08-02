@@ -149,7 +149,15 @@ const RunPayroll: React.FC = React.memo(() => {
         const pf = settings.pf_enabled ? (basic * settings.pf_percentage) / 100 : 0;
         const esi = settings.esi_enabled && gross <= 21000 ? (gross * settings.esi_percentage) / 100 : 0;
         const pt = settings.pt_enabled ? settings.pt_amount : 0;
-        const tds = settings.tds_enabled ? (gross * settings.tds_percentage) / 100 : 0;
+        
+        // TDS calculation with annual limit check
+        let tds = 0;
+        if (settings.tds_enabled) {
+            const annualSalary = employee.monthly_ctc * 12;
+            if (annualSalary > (settings.tds_annual_limit || 250000)) {
+                tds = (gross * settings.tds_percentage) / 100;
+            }
+        }
         
         return { basic, hra, special, overtime: overtimePay, gross, pf, esi, pt, tds };
     }, [settings]);
