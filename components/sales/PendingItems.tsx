@@ -3,9 +3,9 @@ import * as ReactRouterDOM from 'react-router-dom';
 const { useNavigate } = ReactRouterDOM;
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import { Loader, Clock, Package, AlertCircle, ArrowUpDown, Download, FileText, Truck, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader, Clock, Package, AlertCircle, ArrowUpDown, Download, FileText, Truck, ChevronUp, ChevronDown, Monitor } from 'lucide-react';
 import { SalesOrder, DocumentStatus } from '../../types';
-import { getSalesOrders } from './SalesOrderList';
+import { getSalesOrders } from '@/services/salesService';
 import { Search } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -266,6 +266,15 @@ const PendingItems: React.FC = () => {
                 </h3>
                 <div className="flex items-center space-x-4">
                     <div className="flex space-x-2">
+                        <Button 
+                            variant="primary" 
+                            size="sm" 
+                            onClick={() => navigate('/sales/pending-items/tv-mode')} 
+                            icon={<Monitor size={16} />}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                            TV Mode
+                        </Button>
                         <Button variant="secondary" size="sm" onClick={exportToCSV} icon={<FileText size={16} />}>
                             Export CSV
                         </Button>
@@ -347,13 +356,13 @@ const PendingItems: React.FC = () => {
                     <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
                         <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-700">
                             <tr>
-                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => handleSort('productName')}>
+                                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 w-48" onClick={() => handleSort('productName')}>
                                     <div className="flex items-center justify-between">
                                         Product
                                         <SortIcon field="productName" />
                                     </div>
                                 </th>
-                                <th className="px-3 py-3 text-center">
+                                <th className="px-3 py-3 text-center w-28">
                                     <div className="text-center">
                                         <div>Quantities</div>
                                         <div className="text-xs font-normal text-slate-500 dark:text-slate-400 mt-1">
@@ -361,48 +370,48 @@ const PendingItems: React.FC = () => {
                                         </div>
                                     </div>
                                 </th>
-                                <th className="px-4 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => handleSort('unitPrice')}>
+                                <th className="px-3 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 w-24" onClick={() => handleSort('unitPrice')}>
                                     <div className="flex items-center justify-end">
                                         Unit Price
                                         <SortIcon field="unitPrice" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => handleSort('pendingQuantity')}>
+                                <th className="px-3 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 w-32" onClick={() => handleSort('pendingQuantity')}>
                                     <div className="flex items-center justify-end">
                                         Pending Value
                                         <SortIcon field="pendingQuantity" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => handleSort('customerName')}>
+                                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 w-40" onClick={() => handleSort('customerName')}>
                                     <div className="flex items-center justify-between">
                                         Customer
                                         <SortIcon field="customerName" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => handleSort('orderNumber')}>
+                                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 w-28" onClick={() => handleSort('orderNumber')}>
                                     <div className="flex items-center justify-between">
                                         SO Number
                                         <SortIcon field="orderNumber" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-3">PO Number</th>
-                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600" onClick={() => handleSort('orderDate')}>
+                                <th className="px-3 py-3 w-28">PO Number</th>
+                                <th className="px-3 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 w-24" onClick={() => handleSort('orderDate')}>
                                     <div className="flex items-center justify-between">
                                         Order Date
                                         <SortIcon field="orderDate" />
                                     </div>
                                 </th>
-                                <th className="px-4 py-3 text-center">Action</th>
+                                <th className="px-3 py-3 text-center w-24">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredAndSortedItems.map(item => (
                                 <tr key={item.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
-                                    <td className="px-4 py-4">
-                                        <div className="font-medium text-slate-900 dark:text-slate-100">{item.productName}</div>
-                                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{item.description}</div>
+                                    <td className="px-3 py-4 w-48">
+                                        <div className="font-medium text-slate-900 dark:text-slate-100 truncate">{item.productName}</div>
+                                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{item.description}</div>
                                     </td>
-                                    <td className="px-3 py-4 text-center">
+                                    <td className="px-3 py-4 text-center w-28">
                                         <div className="space-y-1">
                                             <div className="text-xs text-slate-600 dark:text-slate-400">
                                                 <span className="font-medium">{item.orderedQuantity}</span> {item.unit}
@@ -417,27 +426,30 @@ const PendingItems: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 text-right">₹{item.unitPrice.toFixed(2)}</td>
-                                    <td className="px-4 py-4 text-right font-semibold text-orange-600 dark:text-orange-400">₹{(item.pendingQuantity * item.unitPrice).toFixed(2)}</td>
-                                    <td className="px-4 py-4">
-                                        <div className="font-medium text-slate-900 dark:text-slate-100">{item.customerName}</div>
+                                    <td className="px-3 py-4 text-right w-24">₹{item.unitPrice.toFixed(2)}</td>
+                                    <td className="px-3 py-4 text-right font-semibold text-orange-600 dark:text-orange-400 w-32">₹{(item.pendingQuantity * item.unitPrice).toFixed(2)}</td>
+                                    <td className="px-3 py-4 w-40">
+                                        <div className="font-medium text-slate-900 dark:text-slate-100 truncate">{item.customerName}</div>
                                     </td>
-                                    <td className="px-4 py-4">
-                                        <span className="bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 px-2 py-1 rounded text-xs font-medium">
+                                    <td className="px-3 py-4 w-28">
+                                        <button
+                                            onClick={() => navigate(`/sales/orders/${item.salesOrderId}/view`)}
+                                            className="bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/30 px-2 py-1 rounded text-xs font-medium truncate block w-full transition-colors duration-200 cursor-pointer"
+                                        >
                                             {item.orderNumber}
-                                        </span>
+                                        </button>
                                     </td>
-                                    <td className="px-4 py-4">
+                                    <td className="px-3 py-4 w-28">
                                         {item.clientPoNumber ? (
-                                            <span className="text-slate-600 dark:text-slate-400 text-xs">{item.clientPoNumber}</span>
+                                            <span className="text-slate-600 dark:text-slate-400 text-xs truncate block">{item.clientPoNumber}</span>
                                         ) : (
                                             <span className="text-slate-400 dark:text-slate-500">-</span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-4 text-xs">
+                                    <td className="px-3 py-4 text-xs w-24">
                                         {new Date(item.orderDate).toLocaleDateString('en-GB')}
                                     </td>
-                                    <td className="px-4 py-4 text-center">
+                                    <td className="px-3 py-4 text-center w-24">
                                         <Button 
                                             size="sm" 
                                             variant="secondary"

@@ -46,7 +46,7 @@ const SearchableInput = <T,>({
           value={searchTerm}
           onChange={(e) => onInputChange(e.target.value)}
           onFocus={onInputFocus}
-          className={`w-full pl-10 pr-3 py-1.5 text-sm bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:ring-2 focus:ring-primary focus:border-primary ${className}`}
+          className="w-full pl-10 pr-3 py-1.5 text-sm bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
         />
       </div>
       

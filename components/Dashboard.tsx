@@ -8,21 +8,19 @@ import { Quote, SalesOrder, DeliveryOrder, PurchaseOrder, InventoryItem, Documen
 import Card from './ui/Card';
 import Button from './ui/Button';
 import { SkeletonTable } from './ui/Skeleton';
-import { getQuotes } from './sales/QuoteList';
-import { getSalesOrders } from './sales/SalesOrderList';
-import { getDeliveryOrders } from './sales/DeliveryOrderList';
+import { getQuotes, getSalesOrders, getDeliveryOrders } from '@/services/salesService';
 import { getPurchaseOrders } from './purchase/PurchaseOrderList';
 import { getInventory } from './inventory/inventoryService';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: string; loading: boolean; to: string; }> = ({ title, value, icon, color, loading, to }) => (
   <Link to={to} className="block">
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md flex items-center transition-all duration-300 hover:shadow-lg hover:-translate-y-1 h-full">
+    <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-lg shadow-md flex items-center transition-all duration-300 hover:shadow-lg hover:-translate-y-1 h-full">
         <div className={`p-3 rounded-full ${color}`}>
         {icon}
         </div>
-        <div className="ml-3">
-        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{title}</p>
-        {loading ? <Loader size={24} className="animate-spin mt-1" /> : <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{value}</p>}
+        <div className="ml-3 min-w-0 flex-1">
+        <p className="text-sm sm:text-base font-medium text-slate-500 dark:text-slate-400">{title}</p>
+        {loading ? <Loader size={24} className="animate-spin mt-1" /> : <p className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">{value}</p>}
         </div>
     </div>
   </Link>
@@ -49,21 +47,21 @@ const DocumentListCard = <T extends { id: string; [key: string]: any }>({
         <ul className="divide-y divide-slate-100 dark:divide-slate-700">
             {documents.length > 0 ? (
                 documents.map(doc => (
-                    <li key={doc.id} className="py-2 px-1">
-                        <div className="flex justify-between items-center text-xs">
-                            <p className="font-medium text-slate-800 dark:text-slate-200 truncate">{doc[nameKey]}</p>
-                            <p className="text-slate-500 dark:text-slate-400">{new Date(doc[dateKey]).toLocaleDateString('en-GB')}</p>
+                    <li key={doc.id} className="py-3 px-2">
+                        <div className="flex justify-between items-center text-sm">
+                            <p className="font-medium text-slate-800 dark:text-slate-200 truncate mr-2">{doc[nameKey]}</p>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm whitespace-nowrap">{new Date(doc[dateKey]).toLocaleDateString('en-GB')}</p>
                         </div>
-                        <Link to={`${linkTo}/${doc.id}/view`} className="text-xs text-primary dark:text-blue-400 hover:underline font-medium">
+                        <Link to={`${linkTo}/${doc.id}/view`} className="text-sm text-primary dark:text-blue-400 hover:underline font-medium">
                           {(doc[numberKey] as string) + (doc.revisionNumber ? `-Rev${doc.revisionNumber}` : '')}
                         </Link>
                     </li>
                 ))
             ) : (
-                <p className="text-xs text-slate-500 text-center py-3">No recent documents.</p>
+                <p className="text-sm text-slate-500 text-center py-4">No recent documents.</p>
             )}
         </ul>
-        <div className="text-right mt-3">
+        <div className="text-right mt-4">
             <Button to={linkTo} variant="secondary" size="sm">View All</Button>
         </div>
     </Card>
@@ -167,7 +165,7 @@ const Dashboard: React.FC = () => {
       <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Adaptec Order Management System</h3>
       
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard to="/sales/quotes?statusFilter=open" title="Open Quotes" value={stats.openQuotes} icon={<FileText className="text-white" />} color="bg-blue-500" loading={loading} />
         <StatCard to="/sales/orders?statusFilter=open" title="Pending Sales Orders" value={stats.pendingSalesOrders} icon={<ShoppingCart className="text-white" />} color="bg-green-500" loading={loading} />
         <StatCard to="/sales/orders?statusFilter=open" title="Ready for Delivery" value={stats.pendingSalesOrders} icon={<Truck className="text-white" />} color="bg-yellow-500" loading={loading} />
@@ -175,29 +173,29 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Main Content Grids */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
         {/* Top Inventory */}
-        <div className="lg:col-span-2">
+        <div className="xl:col-span-2">
             <Card title="Top 10 Inventory Items" icon={<Package size={20} />} className="h-full">
                 {loading ? <SkeletonTable rows={10} cols={2} /> : 
                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                        <thead className="text-left text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700">
+                    <table className="w-full text-sm">
+                        <thead className="text-left text-sm text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700">
                             <tr>
-                                <th className="p-1.5">Product</th>
-                                <th className="p-1.5 text-right">Current Stock</th>
+                                <th className="px-3 py-2">Product</th>
+                                <th className="px-3 py-2 text-right">Current Stock</th>
                             </tr>
                         </thead>
                         <tbody>
                             {lists.topInventory.map(item => (
                                 <tr key={item.productId} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                    <td className="p-1.5 font-medium text-slate-700 dark:text-slate-200">{item.productName}</td>
-                                    <td className="p-1.5 text-right font-bold">
+                                    <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-200">{item.productName}</td>
+                                    <td className="px-3 py-2 text-right font-bold">
                                         <span className={item.currentStock > 10 ? 'text-green-600' : 'text-red-500'}>
                                           {item.currentStock}
                                         </span>
-                                        <span className="text-xs ml-1 text-slate-500">{item.unit}</span>
+                                        <span className="text-sm ml-1 text-slate-500">{item.unit}</span>
                                     </td>
                                 </tr>
                             ))}
@@ -209,7 +207,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Recent Open Quotes */}
-        <div className="lg:col-span-1">
+        <div className="xl:col-span-1">
              <DocumentListCard
                 title="Last 5 Open Quotes"
                 documents={lists.recentOpenQuotes}
@@ -222,7 +220,7 @@ const Dashboard: React.FC = () => {
       </div>
       
       {/* Recent Document Lists */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <DocumentListCard
             title="Last 5 Sales Orders"
             documents={lists.recentSalesOrders}
