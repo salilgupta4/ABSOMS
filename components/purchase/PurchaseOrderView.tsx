@@ -8,6 +8,7 @@ import { PurchaseOrder, CompanyDetails, PdfSettings } from '../../types';
 import { getPurchaseOrder } from './PurchaseOrderList';
 import { Loader, Edit, ArrowLeft, Download, FileText } from 'lucide-react';
 import Button from '../ui/Button';
+import WhatsAppButton from '../ui/WhatsAppButton';
 import { getCompanyDetails } from '../settings/CompanyDetails';
 import { getPdfSettings } from '../settings/pdfSettingsService';
 import jsPDF from 'jspdf';
@@ -62,6 +63,7 @@ export const PurchaseOrderView: React.FC = () => {
     const [pdfSettings, setPdfSettings] = useState<PdfSettings | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
 
     useEffect(() => {
         if (id) {
@@ -152,6 +154,10 @@ export const PurchaseOrderView: React.FC = () => {
             document.body.removeChild(printContainer);
         }
 
+        // Create blob for WhatsApp sharing
+        const pdfBlob = pdf.output('blob');
+        setPdfBlob(pdfBlob);
+        
         pdf.save(`PurchaseOrder-${order?.poNumber}.pdf`);
         setIsGeneratingPdf(false);
     };
@@ -175,6 +181,17 @@ export const PurchaseOrderView: React.FC = () => {
                     <Button onClick={handleDownloadPdf} icon={isGeneratingPdf ? <Loader size={16} className="animate-spin" /> : <Download size={16}/>} disabled={isGeneratingPdf}>
                          {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
                     </Button>
+                    {pdfBlob && (
+                        <WhatsAppButton
+                            pdfBlob={pdfBlob}
+                            documentType="Purchase Order"
+                            documentNumber={order.poNumber}
+                            customerName={order.vendorName}
+                            customerPhone={''}  // PurchaseOrder doesn't track vendor phone
+                            companyName={companyDetails?.name}
+                            size="md"
+                        />
+                    )}
                 </div>
             </div>
 

@@ -6,7 +6,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Loader } from 'lucide-react';
 import { SalesOrder, DocumentLineItem } from '../../types';
-import { getSalesOrder, reviseSalesOrder } from './SalesOrderList';
+import { getSalesOrder, reviseSalesOrder } from '@/services/salesService';
 
 const GST_RATE = 18; // In a real app, this should come from settings or the product itself
 

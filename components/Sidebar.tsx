@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Building, ShoppingCart, Truck, Settings, FileText, ChevronDown, ChevronRight, Package, Box, X, SquarePen, Landmark, FolderOpen, Clock } from 'lucide-react';
+import { LayoutDashboard, Users, Building, ShoppingCart, Truck, Settings, FileText, ChevronDown, ChevronRight, Package, Box, X, SquarePen, Landmark, FolderOpen, Clock, MapPin } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
 import { canAccessModule, canAccessAdminFeatures, canAccessSettings } from '@/utils/permissions';
@@ -119,6 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen }) =>
             </CollapsibleLink>
 
             <SidebarLink to="/inventory" icon={<Box size={18} />} onClick={handleLinkClick}>Inventory</SidebarLink>
+            <SidebarLink to="/transport/list" icon={<MapPin size={18} />} onClick={handleLinkClick}>Transport</SidebarLink>
             <SidebarLink to="/scratchpad" icon={<SquarePen size={18} />} onClick={handleLinkClick}>Scratchpad</SidebarLink>
           </>
         )}

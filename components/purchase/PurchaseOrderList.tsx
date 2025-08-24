@@ -51,8 +51,8 @@ export const savePurchaseOrder = async (order: Omit<PurchaseOrder, 'id' | 'poNum
     } else { // Create
         const settings = await getDocumentNumberingSettings();
         const poSettings = settings.purchaseOrder;
-        const prefix = poSettings.prefix.replace('{VEND}', order.vendorName.substring(0, 4).toUpperCase());
-        const suffix = poSettings.suffix.replace('{VEND}', order.vendorName.substring(0, 4).toUpperCase());
+        const prefix = poSettings.prefix.replace('{VEND}', order.vendorName.replace(/\s+/g, '').substring(0, 4).toUpperCase());
+        const suffix = poSettings.suffix.replace('{VEND}', order.vendorName.replace(/\s+/g, '').substring(0, 4).toUpperCase());
         const poNumber = `${prefix}${String(poSettings.nextNumber).padStart(4, '0')}${suffix}`;
         
         const newPOData = {

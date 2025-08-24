@@ -8,13 +8,14 @@ import Button from '../ui/Button';
 import SearchableSelect from '../ui/SearchableSelect';
 import { Loader } from 'lucide-react';
 import { SalesOrder, Customer } from '../../types';
-import { getSalesOrder } from './SalesOrderList';
-import { createDeliveryOrder } from './DeliveryOrderList';
-import { getCustomer } from '../customers/CustomerList';
+import { useSalesStore } from '@/stores/salesStore';
+import { getSalesOrder } from '@/services/salesService';
+import { getCustomer } from '@/components/customers/CustomerList';
 
 const DeliveryOrderForm: React.FC = () => {
     const { orderId } = useParams();
     const navigate = useNavigate();
+    const { createDeliveryOrder } = useSalesStore();
 
     const [order, setOrder] = useState<SalesOrder | null>(null);
     const [customer, setCustomer] = useState<Customer | null>(null);

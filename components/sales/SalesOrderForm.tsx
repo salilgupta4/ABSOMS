@@ -6,12 +6,13 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Loader } from 'lucide-react';
 import { Quote } from '../../types';
-import { getQuote } from './QuoteList';
-import { createSalesOrderFromQuote } from './SalesOrderList';
+import { useSalesStore } from '@/stores/salesStore';
+import { getQuote } from '@/services/salesService';
 
 const SalesOrderForm: React.FC = () => {
     const { quoteId } = useParams();
     const navigate = useNavigate();
+    const { createSalesOrderFromQuote } = useSalesStore();
     
     const [quote, setQuote] = useState<Quote | null>(null);
     const [clientPoNumber, setClientPoNumber] = useState('');

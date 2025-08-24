@@ -5,9 +5,10 @@ const { useParams, Link, useNavigate } = ReactRouterDOM;
 import ReactDOM from 'react-dom/client';
 import Card from '../ui/Card';
 import { DeliveryOrder, CompanyDetails, PdfSettings, PointOfContact } from '../../types';
-import { getDeliveryOrder } from './DeliveryOrderList';
+import { getDeliveryOrder } from '@/services/salesService';
 import { Loader, Edit, ArrowLeft, Download, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import Button from '../ui/Button';
+import WhatsAppButton from '../ui/WhatsAppButton';
 import { getCompanyDetails } from '../settings/CompanyDetails';
 import { getPdfSettings } from '../settings/pdfSettingsService';
 import { getPointsOfContact } from '@/services/pointOfContactService';
@@ -67,6 +68,7 @@ const DeliveryOrderView: React.FC = () => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
     const [emailStatus, setEmailStatus] = useState<'success' | 'error' | null>(null);
+    const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
 
     useEffect(() => {
         if (id) {
@@ -163,6 +165,11 @@ const DeliveryOrderView: React.FC = () => {
         }
 
         const filename = `DeliveryOrder-${order?.deliveryNumber}.pdf`;
+        
+        // Create blob for WhatsApp sharing
+        const pdfBlob = pdf.output('blob');
+        setPdfBlob(pdfBlob);
+        
         pdf.save(filename);
         setIsGeneratingPdf(false);
 
@@ -232,6 +239,17 @@ const DeliveryOrderView: React.FC = () => {
                      <Button onClick={handleDownloadPdf} icon={(isGeneratingPdf || isSendingEmail) ? <Loader size={16} className="animate-spin" /> : <Download size={16}/>} disabled={isGeneratingPdf || isSendingEmail}>
                         {isGeneratingPdf ? 'Generating...' : isSendingEmail ? 'Sending Email...' : 'Download PDF'}
                     </Button>
+                    {pdfBlob && (
+                        <WhatsAppButton
+                            pdfBlob={pdfBlob}
+                            documentType="Delivery Order"
+                            documentNumber={order.deliveryNumber}
+                            customerName={order.customerName}
+                            customerPhone={order.contactPhone || ''}
+                            companyName={companyDetails?.name}
+                            size="md"
+                        />
+                    )}
                 </div>
             </div>
 

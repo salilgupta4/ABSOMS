@@ -48,15 +48,20 @@ const PayrollDashboard: React.FC = React.memo(() => {
     const [isOvertimeModalOpen, setIsOvertimeModalOpen] = useState(false);
     const [isDeductionsModalOpen, setIsDeductionsModalOpen] = useState(false);
 
-    // Memoize fetch function
+    // Memoize fetch function with optimized data fetching
     const fetchDashboardData = useCallback(async () => {
         setLoading(true);
         try {
             const recordsPromise = viewMode === 'monthly'
                 ? getPayrollRecords(selectedDate)
                 : getYearlyPayrollRecords(selectedDate.slice(0, 4));
-            const [recordsData, advancesData] = await Promise.all([recordsPromise, getAdvancePayments()]);
+            
+            const recordsData = await recordsPromise;
             setAllRecords(recordsData);
+            
+            // Only fetch advances for employees who have payroll records (more efficient)
+            const employeeIds = [...new Set(recordsData.map(r => r.employee_id))];
+            const advancesData = employeeIds.length > 0 ? await getAdvancePayments(employeeIds) : [];
             setAllAdvances(advancesData);
         } catch (error) {
             console.error("Failed to load payroll dashboard data:", error);
@@ -73,30 +78,78 @@ const PayrollDashboard: React.FC = React.memo(() => {
         const roundToNearestTen = (num: number) => Math.round(num / 10) * 10;
         const formatCurrency = (value: number) => `₹${roundToNearestTen(value).toLocaleString('en-IN')}`;
 
+        // Early return if no data to avoid unnecessary computation
+        if (allRecords.length === 0) {
+            return { 
+                stats: {
+                    totalRecords: 0,
+                    totalGross: 0,
+                    totalDeductions: 0,
+                    totalNet: 0,
+                    totalOvertimeAmount: 0,
+                    totalOtHours: 0
+                }, 
+                overtimeByCategory: {}, 
+                deductionsByMonth: {}, 
+                highestAdvanceGiven: 0, 
+                highestDeductionMade: 0, 
+                formatCurrency 
+            };
+        }
+
+        // Use single reduce for better performance
+        const aggregatedData = allRecords.reduce((acc, r) => {
+            acc.totalGross += r.gross_pay || 0;
+            acc.totalDeductions += r.total_deductions || 0;
+            acc.totalNet += r.net_pay || 0;
+            acc.totalOvertimeAmount += r.overtime || 0;
+            acc.totalOtHours += r.overtime_hours || 0;
+            acc.highestDeductionMade = Math.max(acc.highestDeductionMade, r.advance_deduction || 0);
+            
+            // Overtime by category
+            if (r.category && r.overtime > 0) {
+                acc.overtimeByCategory[r.category] = (acc.overtimeByCategory[r.category] || 0) + r.overtime;
+            }
+            
+            // Deductions by month
+            if (r.payroll_month && r.total_deductions > 0) {
+                const month = new Date(r.payroll_month + '-02').toLocaleString('default', { month: 'short' });
+                acc.deductionsByMonth[month] = (acc.deductionsByMonth[month] || 0) + r.total_deductions;
+            }
+            
+            return acc;
+        }, {
+            totalGross: 0,
+            totalDeductions: 0,
+            totalNet: 0,
+            totalOvertimeAmount: 0,
+            totalOtHours: 0,
+            highestDeductionMade: 0,
+            overtimeByCategory: {} as Record<string, number>,
+            deductionsByMonth: {} as Record<string, number>
+        });
+
         const stats = {
             totalRecords: allRecords.length,
-            totalGross: roundToNearestTen(allRecords.reduce((sum, r) => sum + r.gross_pay, 0)),
-            totalDeductions: roundToNearestTen(allRecords.reduce((sum, r) => sum + r.total_deductions, 0)),
-            totalNet: roundToNearestTen(allRecords.reduce((sum, r) => sum + r.net_pay, 0)),
-            totalOvertimeAmount: roundToNearestTen(allRecords.reduce((sum, r) => sum + r.overtime, 0)),
-            totalOtHours: Math.round(allRecords.reduce((sum, r) => sum + (r.overtime_hours || 0), 0))
+            totalGross: roundToNearestTen(aggregatedData.totalGross),
+            totalDeductions: roundToNearestTen(aggregatedData.totalDeductions),
+            totalNet: roundToNearestTen(aggregatedData.totalNet),
+            totalOvertimeAmount: roundToNearestTen(aggregatedData.totalOvertimeAmount),
+            totalOtHours: Math.round(aggregatedData.totalOtHours)
         };
-        
-        const overtimeByCategory = allRecords.reduce((acc, r) => {
-            acc[r.category] = (acc[r.category] || 0) + r.overtime;
-            return acc;
-        }, {} as Record<string, number>);
 
-        const deductionsByMonth = allRecords.reduce((acc, r) => {
-            const month = new Date(r.payroll_month + '-02').toLocaleString('default', { month: 'short' });
-            acc[month] = (acc[month] || 0) + r.total_deductions;
-            return acc;
-        }, {} as Record<string, number>);
+        const highestAdvanceGiven = allAdvances.length > 0 
+            ? Math.max(...allAdvances.map(adv => adv.amount || 0)) 
+            : 0;
 
-        const highestAdvanceGiven = allAdvances.reduce((max, adv) => Math.max(max, adv.amount), 0);
-        const highestDeductionMade = allRecords.reduce((max, rec) => Math.max(max, rec.advance_deduction), 0);
-
-        return { stats, overtimeByCategory, deductionsByMonth, highestAdvanceGiven, highestDeductionMade, formatCurrency };
+        return { 
+            stats, 
+            overtimeByCategory: aggregatedData.overtimeByCategory, 
+            deductionsByMonth: aggregatedData.deductionsByMonth, 
+            highestAdvanceGiven: roundToNearestTen(highestAdvanceGiven), 
+            highestDeductionMade: roundToNearestTen(aggregatedData.highestDeductionMade), 
+            formatCurrency 
+        };
     }, [allRecords, allAdvances]);
 
     // Memoize modal handlers
@@ -108,16 +161,66 @@ const PayrollDashboard: React.FC = React.memo(() => {
         setIsDeductionsModalOpen(prev => !prev);
     }, []);
 
+    const currentYear = new Date().getFullYear();
+    const months = [
+        { short: 'JAN', full: 'January', value: '01' },
+        { short: 'FEB', full: 'February', value: '02' },
+        { short: 'MAR', full: 'March', value: '03' },
+        { short: 'APR', full: 'April', value: '04' },
+        { short: 'MAY', full: 'May', value: '05' },
+        { short: 'JUN', full: 'June', value: '06' },
+        { short: 'JUL', full: 'July', value: '07' },
+        { short: 'AUG', full: 'August', value: '08' },
+        { short: 'SEP', full: 'September', value: '09' },
+        { short: 'OCT', full: 'October', value: '10' },
+        { short: 'NOV', full: 'November', value: '11' },
+        { short: 'DEC', full: 'December', value: '12' }
+    ];
+
+    const handleMonthSelect = useCallback((monthValue: string) => {
+        const year = selectedDate.slice(0, 4);
+        setSelectedDate(`${year}-${monthValue}`);
+        setViewMode('monthly');
+    }, [selectedDate]);
+
     return (
         <div className="space-y-6">
             <Card>
-                <div className="flex items-center space-x-4">
-                    <label className="font-medium">View Mode:</label>
-                    <select value={viewMode} onChange={e => setViewMode(e.target.value as any)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100">
-                        <option value="monthly">Monthly</option>
-                        <option value="yearly">Yearly</option>
-                    </select>
-                    <input type={viewMode} value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
+                <div className="space-y-4">
+                    <div className="flex items-center space-x-4">
+                        <label className="font-medium">View Mode:</label>
+                        <select value={viewMode} onChange={e => setViewMode(e.target.value as any)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100">
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                        <input type={viewMode} value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
+                    </div>
+                    
+                    {viewMode === 'monthly' && (
+                        <div className="space-y-2">
+                            <label className="font-medium text-sm">Quick Month Selection:</label>
+                            <div className="grid grid-cols-6 sm:grid-cols-12 gap-2">
+                                {months.map(month => {
+                                    const monthDate = `${currentYear}-${month.value}`;
+                                    const isSelected = selectedDate === monthDate;
+                                    return (
+                                        <button
+                                            key={month.short}
+                                            onClick={() => handleMonthSelect(month.value)}
+                                            className={`px-3 py-2 text-xs font-medium rounded transition-all duration-200 ${
+                                                isSelected 
+                                                    ? 'bg-blue-500 text-white shadow-md' 
+                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                            }`}
+                                            title={`${month.full} ${currentYear}`}
+                                        >
+                                            {month.short}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </Card>
 

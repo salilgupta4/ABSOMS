@@ -8,7 +8,7 @@ import Button from '../ui/Button';
 import SearchableSelect from '../ui/SearchableSelect';
 import { Loader } from 'lucide-react';
 import { DeliveryOrder, Customer, PointOfContact } from '../../types';
-import { getDeliveryOrder, updateDeliveryOrder } from './DeliveryOrderList';
+import { getDeliveryOrder, updateDeliveryOrder } from '@/services/salesService';
 import { getCustomer } from '../customers/CustomerList';
 import { getPointsOfContact } from '@/services/pointOfContactService';
 

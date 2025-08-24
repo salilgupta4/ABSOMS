@@ -16,90 +16,7 @@ import { collection, query, orderBy, getDocs, doc, getDoc, updateDoc, writeBatch
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSearchableList } from '@/hooks/useSearchableList';
 import SearchableInput from '@/components/ui/SearchableInput';
-
-
-// --- FIRESTORE DATA SERVICE ---
-const processDoc = (docSnap: DocumentSnapshot): Quote => {
-    const data = docSnap.data() as any;
-    if (data.issueDate && data.issueDate instanceof Timestamp) {
-        data.issueDate = data.issueDate.toDate().toISOString();
-    }
-    if (data.expiryDate && data.expiryDate instanceof Timestamp) {
-        data.expiryDate = data.expiryDate.toDate().toISOString();
-    }
-    return { id: docSnap.id, ...data } as Quote;
-};
-
-export const getQuotes = async (): Promise<Quote[]> => {
-    const q = query(collection(db, "quotes"), orderBy("issueDate", "desc"));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(processDoc);
-}
-
-export const getQuote = async (id: string): Promise<Quote | undefined> => {
-    const docRef = doc(db, 'quotes', id);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? processDoc(docSnap) : undefined;
-};
-
-export const saveQuote = async (quote: Omit<Quote, 'status' | 'quoteNumber'> & { id?: string }): Promise<Quote> => {
-    const { id, ...dataToSave } = quote;
-    const batch = writeBatch(db);
-
-    if (id) { // Update
-        const quoteRef = doc(db, 'quotes', id);
-        batch.update(quoteRef, { ...dataToSave, issueDate: Timestamp.fromDate(new Date(dataToSave.issueDate)), expiryDate: Timestamp.fromDate(new Date(dataToSave.expiryDate)) });
-        await batch.commit();
-        const updatedDoc = await getQuote(id);
-        if (!updatedDoc) throw new Error("Could not retrieve updated quote.");
-        return updatedDoc;
-
-    } else { // Create
-        const settings = await getDocumentNumberingSettings();
-        const qSettings = settings.quote;
-        const prefix = qSettings.prefix.replace('{CUST}', dataToSave.customerName.substring(0, 4).toUpperCase());
-        const suffix = qSettings.suffix.replace('{CUST}', dataToSave.customerName.substring(0, 4).toUpperCase());
-        const newNumber = `${prefix}${String(qSettings.nextNumber).padStart(4, '0')}${suffix}`;
-        
-        const newQuoteData = {
-            ...dataToSave,
-            quoteNumber: newNumber,
-            revisionNumber: 0,
-            status: DocumentStatus.Draft,
-            issueDate: Timestamp.fromDate(new Date(dataToSave.issueDate)),
-            expiryDate: Timestamp.fromDate(new Date(dataToSave.expiryDate))
-        };
-        
-        const newQuoteRef = doc(collection(db, 'quotes'));
-        batch.set(newQuoteRef, newQuoteData);
-        
-        const settingsRef = doc(db, 'settings', 'docNumbering');
-        settings.quote.nextNumber++;
-        batch.set(settingsRef, settings);
-        
-        await batch.commit();
-
-        const savedDoc = await getQuote(newQuoteRef.id);
-        if (!savedDoc) throw new Error("Could not retrieve saved quote.");
-        return savedDoc;
-    }
-};
-
-export const updateQuote = async (updatedQuote: Quote): Promise<Quote> => {
-    const { id, ...restOfQuote } = updatedQuote;
-    await updateDoc(doc(db, 'quotes', id), {
-        ...restOfQuote,
-        issueDate: Timestamp.fromDate(new Date(updatedQuote.issueDate)),
-        expiryDate: Timestamp.fromDate(new Date(updatedQuote.expiryDate)),
-    });
-    return updatedQuote;
-}
-
-const deleteQuote = async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, "quotes", id));
-};
-// --- END FIRESTORE DATA SERVICE ---
-
+import { useSalesStore } from '@/stores/salesStore';
 
 const statusColors: { [key in DocumentStatus]?: string } = {
     [DocumentStatus.Draft]: 'bg-slate-100 text-slate-800 dark:bg-slate-600 dark:text-slate-200',
@@ -116,12 +33,10 @@ type SortKey = 'quoteNumber' | 'customerName' | 'pointOfContact' | 'issueDate' |
 const isClosedStatus = (status: DocumentStatus) => 
     [DocumentStatus.Closed, DocumentStatus.Rejected, DocumentStatus.Superseded].includes(status);
 
-
 const QuoteList: React.FC = () => {
     const { user } = useAuth();
-    const [quotes, setQuotes] = useState<Quote[]>([]);
+    const { quotes, loading, fetchQuotes, deleteQuote, updateQuoteStatus } = useSalesStore();
     const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
-    const [loading, setLoading] = useState(true);
     const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -156,25 +71,10 @@ const QuoteList: React.FC = () => {
         searchFields: ['quoteNumber', 'customerName']
     });
 
-    const fetchQuotes = async () => {
-        setLoading(true);
-        try {
-            const [quotesData, contactsData] = await Promise.all([
-                getQuotes(),
-                getPointsOfContact()
-            ]);
-            setQuotes(quotesData);
-            setPointsOfContact(contactsData);
-            setLoading(false);
-        } catch (err: any) {
-            alert(`Error fetching quotes: ${err.message}`);
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
         fetchQuotes();
-    }, []);
+        getPointsOfContact().then(setPointsOfContact);
+    }, [fetchQuotes]);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -186,24 +86,13 @@ const QuoteList: React.FC = () => {
 
     const handleStatusChange = async (quoteId: string, newStatus: DocumentStatus) => {
         setUpdatingStatusId(quoteId);
-        try {
-            const quoteRef = doc(db, 'quotes', quoteId);
-            await updateDoc(quoteRef, { status: newStatus });
-            setQuotes(prevQuotes => prevQuotes.map(p => p.id === quoteId ? { ...p, status: newStatus } : p));
-        } catch (error) {
-            console.error("Failed to update status", error);
-            alert("Failed to update status.");
-        } finally {
-            setUpdatingStatusId(null);
-        }
+        await updateQuoteStatus(quoteId, newStatus);
+        setUpdatingStatusId(null);
     };
 
     const handleDelete = (id: string) => {
         if (window.confirm("Are you sure you want to delete this quote?")) {
-            deleteQuote(id).then(fetchQuotes).catch(err => {
-                console.error("Failed to delete quote:", err);
-                alert("An error occurred while deleting the quote.");
-            });
+            deleteQuote(id);
         }
     };
 

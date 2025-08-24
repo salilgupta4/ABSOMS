@@ -18,149 +18,7 @@ import { getEmailService } from '@/services/emailService';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSearchableList } from '@/hooks/useSearchableList';
 import SearchableInput from '@/components/ui/SearchableInput';
-
-// --- FIRESTORE DATA SERVICE ---
-const processDoc = (docSnap: DocumentSnapshot): SalesOrder => {
-    const data = docSnap.data() as any;
-    if (data.orderDate && data.orderDate instanceof Timestamp) {
-        data.orderDate = data.orderDate.toDate().toISOString();
-    }
-    return { id: docSnap.id, ...data } as SalesOrder;
-};
-
-export const getSalesOrders = async (): Promise<SalesOrder[]> => {
-    const q = query(collection(db, "sales_orders"), orderBy("orderDate", "desc"));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(processDoc);
-};
-
-export const getSalesOrder = async (id: string): Promise<SalesOrder | undefined> => {
-    const docRef = doc(db, 'sales_orders', id);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? processDoc(docSnap) : undefined;
-};
-
-export const createSalesOrderFromQuote = async (quoteData: Quote, clientPoNumber: string): Promise<SalesOrder> => {
-    const batch = writeBatch(db);
-
-    // 1. Get SO Number
-    const settings = await getDocumentNumberingSettings();
-    const soSettings = settings.salesOrder;
-    const prefix = soSettings.prefix.replace('{CUST}', quoteData.customerName.substring(0, 4).toUpperCase());
-    const suffix = soSettings.suffix.replace('{CUST}', quoteData.customerName.substring(0, 4).toUpperCase());
-    const orderNumber = `${prefix}${String(soSettings.nextNumber).padStart(4, '0')}${suffix}`;
-    
-    // 2. Prepare SO Data
-    const newSOData: Omit<SalesOrder, 'id'> = {
-        orderNumber,
-        linkedQuoteId: quoteData.id,
-        quoteNumber: `${quoteData.quoteNumber}${quoteData.revisionNumber ? `-Rev${quoteData.revisionNumber}`: ''}`,
-        clientPoNumber: clientPoNumber,
-        customerId: quoteData.customerId,
-        customerName: quoteData.customerName,
-        customerGstin: quoteData.customerGstin,
-        contactId: quoteData.contactId,
-        contactName: quoteData.contactName,
-        contactPhone: quoteData.contactPhone,
-        contactEmail: quoteData.contactEmail,
-        billingAddress: quoteData.billingAddress,
-        shippingAddress: quoteData.shippingAddress,
-        orderDate: new Date().toISOString(),
-        lineItems: quoteData.lineItems,
-        subTotal: quoteData.subTotal,
-        gstTotal: quoteData.gstTotal,
-        total: quoteData.total,
-        terms: quoteData.terms,
-        status: DocumentStatus.Approved,
-        deliveredQuantities: {},
-        additionalDescription: quoteData.additionalDescription,
-        pointOfContactId: quoteData.pointOfContactId,
-    };
-
-    // 3. Add SO to batch
-    const newSORef = doc(collection(db, 'sales_orders'));
-    batch.set(newSORef, { ...newSOData, orderDate: Timestamp.fromDate(new Date(newSOData.orderDate))});
-
-    // 4. Update numbering settings and add to batch
-    settings.salesOrder.nextNumber++;
-    const settingsRef = doc(db, 'settings', 'docNumbering');
-    batch.set(settingsRef, settings);
-
-    // 5. Update quote status and add to batch
-    const quoteRef = doc(db, 'quotes', quoteData.id);
-    batch.update(quoteRef, { status: DocumentStatus.Closed, linkedSalesOrderId: newSORef.id });
-    
-    // 6. Commit batch
-    await batch.commit();
-
-    const savedDoc = await getSalesOrder(newSORef.id);
-    if (!savedDoc) throw new Error("Could not retrieve saved Sales Order.");
-    
-    // 7. Send email notification
-    try {
-        const companyDetails = await getCompanyDetails();
-        if (companyDetails?.emailSettings?.enableNotifications) {
-            const emailService = getEmailService(companyDetails.emailSettings);
-            await emailService.sendSalesOrderNotification(savedDoc, companyDetails);
-            console.log('Sales Order creation email notification sent successfully');
-        }
-    } catch (emailError) {
-        console.error('Failed to send Sales Order creation email:', emailError);
-        // Don't throw error - don't block the user flow if email fails
-    }
-    
-    return savedDoc;
-};
-
-export const reviseSalesOrder = async (orderId: string, updatedLineItems: any[], newPoNumber: string): Promise<void> => {
-    // This logic is complex and better suited for a Cloud Function to ensure atomicity.
-    // For client-side, we'll assume it works in a simplified manner.
-    const soRef = doc(db, 'sales_orders', orderId);
-    
-    const { subTotal, gstTotal } = updatedLineItems.reduce((acc, item) => {
-        const itemTotal = item.quantity * item.unitPrice;
-        acc.subTotal += itemTotal;
-        acc.gstTotal += itemTotal * (item.taxRate / 100);
-        return acc;
-    }, { subTotal: 0, gstTotal: 0 });
-    const total = Math.round(subTotal + gstTotal);
-
-    await updateDoc(soRef, {
-        lineItems: updatedLineItems,
-        clientPoNumber: newPoNumber,
-        subTotal,
-        gstTotal,
-        total
-    });
-    alert("Sales Order revised. Note: Quote revision logic is simplified in this version.");
-}
-
-export const deleteSalesOrder = async (id: string): Promise<void> => {
-    // Check for existing deliveries
-    const deliveriesQuery = query(collection(db, 'delivery_orders'), where('salesOrderId', '==', id));
-    const deliverySnapshot = await getDocs(deliveriesQuery);
-    if (!deliverySnapshot.empty) {
-        throw new Error("Cannot delete Sales Order. Please delete all linked Delivery Orders first.");
-    }
-
-    const soToDelete = await getSalesOrder(id);
-    if (!soToDelete) throw new Error("Sales Order not found.");
-
-    const batch = writeBatch(db);
-
-    // 1. Delete the SO
-    const soRef = doc(db, 'sales_orders', id);
-    batch.delete(soRef);
-
-    // 2. Re-open the parent quote
-    if (soToDelete.linkedQuoteId) {
-        const quoteRef = doc(db, 'quotes', soToDelete.linkedQuoteId);
-        batch.update(quoteRef, { status: DocumentStatus.Approved, linkedSalesOrderId: null });
-    }
-
-    await batch.commit();
-}
-// --- END FIRESTORE DATA SERVICE ---
+import { useSalesStore } from '@/stores/salesStore';
 
 const statusColors: { [key in DocumentStatus]?: string } = {
     [DocumentStatus.Approved]: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100',
@@ -174,9 +32,8 @@ const isClosedStatus = (status: DocumentStatus) => status === DocumentStatus.Clo
 
 const SalesOrderList: React.FC = () => {
     const { user } = useAuth();
-    const [orders, setOrders] = useState<SalesOrder[]>([]);
+    const { salesOrders, loading, fetchSalesOrders, deleteSalesOrder } = useSalesStore();
     const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
-    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'orderDate', direction: 'descending' });
@@ -201,7 +58,7 @@ const SalesOrderList: React.FC = () => {
         handleInputChange,
         selectItem
     } = useSearchableList({
-        items: orders,
+        items: salesOrders,
         searchTerm,
         setSearchTerm,
         getItemId: (order) => order.id,
@@ -209,25 +66,10 @@ const SalesOrderList: React.FC = () => {
         searchFields: ['orderNumber', 'customerName', 'clientPoNumber']
     });
 
-    const fetchOrders = async () => {
-        setLoading(true);
-        try {
-            const [ordersData, contactsData] = await Promise.all([
-                getSalesOrders(),
-                getPointsOfContact()
-            ]);
-            setOrders(ordersData);
-            setPointsOfContact(contactsData);
-            setLoading(false);
-        } catch (error) {
-            console.error('Error fetching data:', error);
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
-        fetchOrders();
-    }, []);
+        fetchSalesOrders();
+        getPointsOfContact().then(setPointsOfContact);
+    }, [fetchSalesOrders]);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -239,10 +81,7 @@ const SalesOrderList: React.FC = () => {
 
     const handleDelete = (id: string) => {
         if(window.confirm("Are you sure you want to delete this Sales Order? This action cannot be undone.")) {
-            deleteSalesOrder(id).then(() => {
-                alert("Sales Order deleted and parent Quote has been reopened.");
-                fetchOrders();
-            }).catch(err => {
+            deleteSalesOrder(id).catch(err => {
                 alert(err.message);
             });
         }
@@ -263,7 +102,7 @@ const SalesOrderList: React.FC = () => {
     };
 
     const sortedAndFilteredOrders = useMemo(() => {
-        let sortableItems = [...orders];
+        let sortableItems = [...salesOrders];
 
         if (statusFilter !== 'all') {
             if (statusFilter === 'open') {
@@ -308,7 +147,7 @@ const SalesOrderList: React.FC = () => {
             return 0;
         });
         return sortableItems;
-    }, [orders, pointsOfContact, searchTerm, sortConfig, statusFilter]);
+    }, [salesOrders, pointsOfContact, searchTerm, sortConfig, statusFilter]);
 
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
         <th scope="col" className="px-4 py-2 cursor-pointer" onClick={() => requestSort(sortKey)}>

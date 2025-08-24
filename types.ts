@@ -293,6 +293,7 @@ export interface CompanyDetails {
     bankDetails?: BankDetails;
     deliveryAddress: string;
     emailSettings?: EmailSettings;
+    enableWhatsApp?: boolean;
 }
 
 export interface PointOfContact {
@@ -481,4 +482,29 @@ export interface ActiveUser {
   userId: string;
   userName: string;
   lastActive: string; // ISO String
+}
+
+// --- TRANSPORT TYPES ---
+
+export interface TransportTransaction {
+  id: string;
+  date: string; // ISO String
+  type: 'cost' | 'payment';
+  amount: number;
+  description: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approved_by?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Transporter {
+  id: string;
+  name: string;
+  phone: string;
+  vehicleNumber: string;
+  created_at: string;
+  updated_at: string;
 }

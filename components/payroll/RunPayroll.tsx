@@ -3,7 +3,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { Loader, PlayCircle, Settings, UserCheck, Trash2, RotateCcw } from 'lucide-react';
 import { PayrollEmployee, EmployeeCategory, PayrollSettings, AdvancePayment, PayrollRecord } from '@/types';
-import { getPayrollEmployees, getPayrollRecords, savePayrollRecords, getPayrollSettings, getAdvancePayments, deletePayrollRun, revertSinglePayrollRecord } from '@/services/payrollService';
+import { getPayrollEmployees, getPayrollRecords, savePayrollRecords, getPayrollSettings, getAdvancePayments, deletePayrollRun, revertSinglePayrollRecord, clearPayrollCache, getAllPayrollRecords } from '@/services/payrollService';
 import Modal from '@/components/ui/Modal';
 import { useAuth } from '@/contexts/AuthContext';
 import { canPerformAction } from '@/utils/permissions';
@@ -48,14 +48,35 @@ const RunPayroll: React.FC = React.memo(() => {
     const [processingSummary, setProcessingSummary] = useState<ProcessingSummary | null>(null);
 
     // Memoize fetchData to prevent recreation on every render
-    const fetchData = useCallback(() => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
-        Promise.all([
-            getPayrollEmployees(),
-            getPayrollSettings(),
-            getAdvancePayments(),
-            getPayrollRecords(selectedMonth)
-        ]).then(([empData, settingsData, advData, recordsData]) => {
+        try {
+            console.log('Fetching payroll data...');
+            console.log('Selected month:', selectedMonth);
+            
+            // Clear cache to force fresh data
+            clearPayrollCache();
+            console.log('Cache cleared');
+            
+            // Fetch each piece of data separately to identify which is failing
+            const empData = await getPayrollEmployees();
+            console.log('Employees loaded:', empData.length);
+            
+            const settingsData = await getPayrollSettings();
+            console.log('Settings loaded:', settingsData);
+            
+            const advData = await getAdvancePayments(); // No parameters means fetch all
+            console.log('Advances loaded:', advData.length);
+            
+            const recordsData = await getPayrollRecords(selectedMonth);
+            console.log('Records loaded:', recordsData.length);
+            
+            // Debug: Check if any payroll records exist in the system
+            if (recordsData.length === 0) {
+                console.log('No records for current month, checking all months...');
+                await getAllPayrollRecords();
+            }
+            
             const activeEmployees = empData.filter(e => e.status === 'Active');
             setEmployees(activeEmployees);
             setSettings(settingsData);
@@ -87,7 +108,19 @@ const RunPayroll: React.FC = React.memo(() => {
             });
             setPayrollInputs(inputs);
             
-        }).catch(console.error).finally(() => setLoading(false));
+        } catch (error) {
+            console.error('Error fetching payroll data:', error);
+            // Try to at least load settings with fallback
+            try {
+                const fallbackSettings = await getPayrollSettings();
+                console.log('Fallback settings loaded:', fallbackSettings);
+                setSettings(fallbackSettings);
+            } catch (settingsError) {
+                console.error('Failed to load settings:', settingsError);
+            }
+        } finally {
+            setLoading(false);
+        }
     }, [selectedMonth]);
 
     useEffect(() => {
@@ -183,7 +216,7 @@ const RunPayroll: React.FC = React.memo(() => {
             if(!calcs) continue;
 
             const totalDeductions = calcs.pf + calcs.esi + calcs.pt + calcs.tds + (inputs.advance_deduction || 0);
-            const netPay = calcs.gross - totalDeductions;
+            const netPay = Math.round(calcs.gross - totalDeductions);
             
             const remittanceAccount = employee.bankAccounts?.find(a => a.id === inputs.remittance_account_id);
 
@@ -350,7 +383,17 @@ const RunPayroll: React.FC = React.memo(() => {
     }, [employees, processedEmployeeIds, selectedMonth, selectedEmployees, handleSelectAll, payrollInputs, permissions.canEdit, handleInputChange, handleEmployeeSelect, advances]);
     
     if (loading) return <Card title="Loading Payroll Data..."><Loader className="animate-spin" /></Card>;
-    if (!settings) return <Card title="Payroll Configuration Needed"><p className="p-4">Please configure your payroll settings first.</p><Button to="/payroll/settings" icon={<Settings/>}>Go to Settings</Button></Card>
+    if (!settings) return (
+        <Card title="Payroll Configuration Needed">
+            <div className="p-4 space-y-4">
+                <p>Please configure your payroll settings first, or there may be a connection issue.</p>
+                <div className="flex gap-2">
+                    <Button to="/payroll/settings" icon={<Settings/>}>Go to Settings</Button>
+                    <Button onClick={fetchData} icon={<RotateCcw/>} variant="outline">Retry Loading</Button>
+                </div>
+            </div>
+        </Card>
+    );
 
     return (
         <div className="space-y-6">

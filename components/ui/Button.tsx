@@ -1,39 +1,62 @@
 
-import React from 'react';
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "../../lib/utils"
 import * as ReactRouterDOM from 'react-router-dom';
 const { Link } = ReactRouterDOM;
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  children?: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger';
-  size?: 'sm' | 'md' | 'lg';
-  to?: string;
-  icon?: React.ReactNode;
-  as?: React.ElementType;
-  shortcut?: string;
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+        // Legacy variants for compatibility
+        primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+        danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+      },
+      size: {
+        default: "h-10 px-4 py-2 text-sm sm:text-base",
+        sm: "h-9 rounded-md px-3 text-sm",
+        lg: "h-11 rounded-md px-8 text-base sm:text-lg",
+        icon: "h-10 w-10",
+        // Legacy sizes for compatibility
+        md: "h-10 px-4 py-2 text-sm sm:text-base",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+  to?: string
+  icon?: React.ReactNode
+  shortcut?: string
+  as?: React.ElementType
 }
 
-const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = 'md', to, icon, as, shortcut, ...props }) => {
-  const baseClasses = "rounded-lg font-semibold inline-flex items-center justify-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
-  
-  const variantClasses = {
-    primary: 'bg-primary text-white hover:bg-primary-hover focus:ring-primary',
-    secondary: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 focus:ring-primary',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-  };
-
-  const sizeClasses = {
-    sm: 'px-2 py-1 text-xs',
-    md: 'px-4 py-2 text-sm',
-    lg: 'px-6 py-3 text-base',
-  };
-
-  const className = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${props.className || ''}`;
-  
-  // Add title attribute for keyboard shortcut tooltip
-  const titleProp = shortcut ? { title: `Keyboard shortcut: ${shortcut}` } : {};
-  
-  const content = (
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = "default", size = "default", asChild = false, to, icon, shortcut, children, as, ...props }, ref) => {
+    const Comp = asChild ? Slot : as || "button"
+    
+    const titleProp = shortcut ? { title: `Keyboard shortcut: ${shortcut}` } : {};
+    
+    const content = (
       <>
         {icon && <span className={children ? "mr-2 -ml-1" : ""}>{icon}</span>}
         {children}
@@ -43,23 +66,33 @@ const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = '
           </span>
         )}
       </>
-  )
+    )
 
-  if (to) {
+    if (to) {
+      return (
+        <Link
+          to={to}
+          className={cn(buttonVariants({ variant, size, className }))}
+          {...titleProp}
+        >
+          {content}
+        </Link>
+      );
+    }
+    
     return (
-      <Link to={to} className={className} {...titleProp}>
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...titleProp}
+        {...props}
+      >
         {content}
-      </Link>
-    );
+      </Comp>
+    )
   }
+)
+Button.displayName = "Button"
 
-  const Component = as || 'button';
-
-  return (
-    <Component className={className} {...titleProp} {...props}>
-      {content}
-    </Component>
-  );
-};
-
-export default Button;
+export default Button
+export { Button, buttonVariants }

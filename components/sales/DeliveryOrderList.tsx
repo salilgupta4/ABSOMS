@@ -17,166 +17,7 @@ import { getEmailService } from '@/services/emailService';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSearchableList } from '@/hooks/useSearchableList';
 import SearchableInput from '@/components/ui/SearchableInput';
-
-// --- FIRESTORE DATA SERVICE ---
-const processDoc = (docSnap: DocumentSnapshot): DeliveryOrder => {
-    const data = docSnap.data() as any;
-    if (data.deliveryDate && data.deliveryDate instanceof Timestamp) {
-        data.deliveryDate = data.deliveryDate.toDate().toISOString();
-    }
-     if (data.orderDate && data.orderDate instanceof Timestamp) {
-        data.orderDate = data.orderDate.toDate().toISOString();
-    }
-    return { id: docSnap.id, ...data } as DeliveryOrder;
-};
-
-export const getDeliveryOrders = async (): Promise<DeliveryOrder[]> => {
-    const q = query(collection(db, 'delivery_orders'), orderBy('deliveryDate', 'desc'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(processDoc);
-};
-
-export const getDeliveryOrder = async (id: string): Promise<DeliveryOrder | undefined> => {
-    const docRef = doc(db, 'delivery_orders', id);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? processDoc(docSnap) : undefined;
-};
-
-export const createDeliveryOrder = async (
-    salesOrderId: string,
-    deliveryItems: DocumentLineItem[],
-    shippingAddress: Address,
-    contactId: string,
-    contactName: string,
-    contactPhone: string,
-    contactEmail: string,
-    vehicleNumber?: string,
-    additionalDescription?: string
-): Promise<DeliveryOrder> => {
-    
-    const soRef = doc(db, "sales_orders", salesOrderId);
-    const soSnap = await getDoc(soRef);
-    if (!soSnap.exists()) throw new Error("Sales Order not found.");
-    const parentSO = { id: soSnap.id, ...soSnap.data() } as SalesOrder;
-
-    const settings = await getDocumentNumberingSettings();
-    const doSettings = settings.deliveryOrder;
-    const prefix = doSettings.prefix.replace('{CUST}', parentSO.customerName.substring(0, 4).toUpperCase());
-    const suffix = doSettings.suffix.replace('{CUST}', parentSO.customerName.substring(0, 4).toUpperCase());
-    const deliveryNumber = `${prefix}${String(doSettings.nextNumber).padStart(4, '0')}${suffix}`;
-    
-    const newDOData = {
-        deliveryNumber,
-        salesOrderId: parentSO.id,
-        salesOrderNumber: parentSO.orderNumber,
-        customerId: parentSO.customerId,
-        customerName: parentSO.customerName,
-        customerGstin: parentSO.customerGstin,
-        contactId,
-        contactName,
-        contactPhone,
-        contactEmail,
-        deliveryDate: Timestamp.now(),
-        billingAddress: parentSO.billingAddress,
-        shippingAddress: shippingAddress,
-        lineItems: deliveryItems,
-        status: DocumentStatus.Dispatched,
-        vehicleNumber,
-        additionalDescription,
-        // pointOfContactId is not inherited from sales order - can be added independently
-    };
-
-    const batch = writeBatch(db);
-
-    // 1. Create the new Delivery Order
-    const newDORef = doc(collection(db, 'delivery_orders'));
-    batch.set(newDORef, newDOData);
-
-    // 2. Update SO delivered quantities
-    const updatedDeliveredQuantities = { ...(parentSO.deliveredQuantities || {}) };
-    deliveryItems.forEach(item => {
-        updatedDeliveredQuantities[item.id] = (updatedDeliveredQuantities[item.id] || 0) + item.quantity;
-    });
-
-    const isFullyDelivered = parentSO.lineItems.every((item: DocumentLineItem) =>
-        (updatedDeliveredQuantities[item.id] || 0) >= item.quantity
-    );
-
-    batch.update(soRef, {
-        deliveredQuantities: updatedDeliveredQuantities,
-        status: isFullyDelivered ? DocumentStatus.Closed : DocumentStatus.Partial
-    });
-
-    // 3. Update numbering settings
-    settings.deliveryOrder.nextNumber++;
-    const settingsRef = doc(db, 'settings', 'docNumbering');
-    batch.set(settingsRef, settings);
-
-    await batch.commit();
-    
-    const savedDoc = await getDeliveryOrder(newDORef.id);
-    if (!savedDoc) throw new Error("Could not retrieve saved delivery order");
-    
-    // Send email notification
-    try {
-        const companyDetails = await getCompanyDetails();
-        if (companyDetails?.emailSettings?.enableNotifications) {
-            const emailService = getEmailService(companyDetails.emailSettings);
-            await emailService.sendDeliveryOrderNotification(savedDoc, companyDetails);
-            console.log('Delivery Order creation email notification sent successfully');
-        }
-    } catch (emailError) {
-        console.error('Failed to send Delivery Order creation email:', emailError);
-        // Don't throw error - don't block the user flow if email fails
-    }
-    
-    return savedDoc;
-};
-
-export const updateDeliveryOrder = async (updatedDO: DeliveryOrder): Promise<DeliveryOrder> => {
-    const { id, ...dataToUpdate } = updatedDO;
-    const doRef = doc(db, 'delivery_orders', id);
-    // Convert date string back to Timestamp for storage if needed, or handle in component
-    await updateDoc(doRef, {
-        ...dataToUpdate,
-        deliveryDate: Timestamp.fromDate(new Date(dataToUpdate.deliveryDate)),
-    });
-    return updatedDO;
-}
-
-export const deleteDeliveryOrder = async (id: string): Promise<void> => {
-    const doToDelete = await getDeliveryOrder(id);
-    if (!doToDelete) throw new Error("Delivery Order not found.");
-
-    const soRef = doc(db, 'sales_orders', doToDelete.salesOrderId);
-    const soSnap = await getDoc(soRef);
-    if (!soSnap.exists()) throw new Error("Parent Sales Order not found.");
-    const parentSO = { id: soSnap.id, ...soSnap.data() } as SalesOrder;
-
-    const batch = writeBatch(db);
-
-    // 1. Delete the DO
-    const doRef = doc(db, 'delivery_orders', id);
-    batch.delete(doRef);
-
-    // 2. Revert quantities on the SO
-    const updatedDeliveredQuantities = { ...(parentSO.deliveredQuantities || {}) };
-    doToDelete.lineItems.forEach(item => {
-        updatedDeliveredQuantities[item.id] = Math.max(0, (updatedDeliveredQuantities[item.id] || 0) - item.quantity);
-    });
-    
-    const totalDelivered = (Object.values(updatedDeliveredQuantities) as number[]).reduce((a: number, b: number) => a + b, 0);
-    const newStatus = totalDelivered > 0 ? DocumentStatus.Partial : DocumentStatus.Approved;
-
-    batch.update(soRef, {
-        deliveredQuantities: updatedDeliveredQuantities,
-        status: newStatus
-    });
-
-    await batch.commit();
-};
-
-// --- END FIRESTORE DATA SERVICE ---
+import { useSalesStore } from '@/stores/salesStore';
 
 
 const statusColors: { [key in DocumentStatus]?: string } = {
@@ -185,11 +26,13 @@ const statusColors: { [key in DocumentStatus]?: string } = {
 
 type SortKey = 'deliveryNumber' | 'salesOrderNumber' | 'customerName' | 'pointOfContact' | 'deliveryDate';
 
+
+
+
 const DeliveryOrderList: React.FC = () => {
     const { user } = useAuth();
-    const [orders, setOrders] = useState<DeliveryOrder[]>([]);
+    const { deliveryOrders, loading, fetchDeliveryOrders, deleteDeliveryOrder } = useSalesStore();
     const [pointsOfContact, setPointsOfContact] = useState<PointOfContact[]>([]);
-    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'deliveryDate', direction: 'descending' });
@@ -212,41 +55,23 @@ const DeliveryOrderList: React.FC = () => {
         handleInputChange,
         selectItem
     } = useSearchableList({
-        items: orders,
+        items: deliveryOrders,
         searchTerm,
         setSearchTerm,
-        getItemId: (order) => order.id,
-        getItemUrl: (order) => `/sales/deliveries/${order.id}/view`,
+        getItemId: (order: DeliveryOrder) => order.id,
+        getItemUrl: (order: DeliveryOrder) => `/sales/deliveries/${order.id}/view`,
         searchFields: ['deliveryNumber', 'salesOrderNumber', 'customerName']
     });
 
 
-    const fetchOrders = async () => {
-        setLoading(true);
-        try {
-            const [ordersData, contactsData] = await Promise.all([
-                getDeliveryOrders(),
-                getPointsOfContact()
-            ]);
-            setOrders(ordersData);
-            setPointsOfContact(contactsData);
-            setLoading(false);
-        } catch (error) {
-            console.error('Error fetching data:', error);
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
-        fetchOrders();
-    }, []);
+        fetchDeliveryOrders();
+        getPointsOfContact().then(setPointsOfContact);
+    }, [fetchDeliveryOrders]);
 
     const handleDelete = (id: string) => {
         if (window.confirm("Are you sure you want to delete this Delivery Order? This will revert the delivered quantities on the Sales Order.")) {
-            deleteDeliveryOrder(id).then(() => {
-                alert("Delivery Order deleted.");
-                fetchOrders();
-            }).catch(err => alert(err.message));
+            deleteDeliveryOrder(id).catch(err => alert(err.message));
         }
     }
 
@@ -265,7 +90,7 @@ const DeliveryOrderList: React.FC = () => {
     };
 
     const sortedAndFilteredOrders = useMemo(() => {
-        let sortableItems = [...orders];
+        let sortableItems = [...deliveryOrders];
 
         if (statusFilter !== 'all') {
             sortableItems = sortableItems.filter(o => o.status === statusFilter);
@@ -300,7 +125,7 @@ const DeliveryOrderList: React.FC = () => {
             });
         }
         return sortableItems;
-    }, [orders, pointsOfContact, searchTerm, sortConfig, statusFilter]);
+    }, [deliveryOrders, pointsOfContact, searchTerm, sortConfig, statusFilter]);
 
     const SortableHeader: React.FC<{ sortKey: SortKey, children: React.ReactNode}> = ({ sortKey, children }) => (
         <th scope="col" className="px-4 py-2 cursor-pointer" onClick={() => requestSort(sortKey)}>

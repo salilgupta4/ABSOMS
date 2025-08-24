@@ -34,6 +34,7 @@ const defaultDetails: CompanyDetailsType = {
         notificationEmail: '',
         enableNotifications: false,
     },
+    enableWhatsApp: false,
 };
 
 export const getCompanyDetails = async (): Promise<CompanyDetailsType> => {
@@ -305,6 +306,22 @@ const CompanyDetails: React.FC = () => {
                             </>
                         )}
                     </div>
+                </div>
+                
+                <div className="p-4 border rounded-lg border-slate-200 dark:border-slate-700">
+                    <h5 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">WhatsApp Integration</h5>
+                    <CheckboxField 
+                        label="Enable WhatsApp integration for sending documents" 
+                        name="enableWhatsApp" 
+                        checked={details.enableWhatsApp || false} 
+                        onChange={(e) => setDetails({ ...details, enableWhatsApp: e.target.checked })} 
+                        disabled={loading || isViewer} 
+                    />
+                    {details.enableWhatsApp && (
+                        <div className="mt-3 text-sm text-slate-600 dark:text-slate-400 bg-green-50 dark:bg-green-900/20 p-3 rounded">
+                            <p>✅ WhatsApp integration is enabled. Users will see WhatsApp buttons on documents for easy sharing.</p>
+                        </div>
+                    )}
                 </div>
                 
                 <TextAreaField label="Default Delivery Address (for Purchase Orders)" name="deliveryAddress" value={details.deliveryAddress || ''} onChange={handleChange} disabled={loading || isViewer} />

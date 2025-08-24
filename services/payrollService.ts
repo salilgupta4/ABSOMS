@@ -24,9 +24,17 @@ const processDoc = (docSnap: DocumentSnapshot): any => {
 const employeesCollection = collection(db, 'payroll_employees');
 
 export const getPayrollEmployees = async (): Promise<PayrollEmployee[]> => {
-    const q = query(employeesCollection, orderBy('name', 'asc'));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => processDoc(doc) as PayrollEmployee);
+    try {
+        console.log('Fetching payroll employees...');
+        const q = query(employeesCollection, orderBy('name', 'asc'));
+        const snapshot = await getDocs(q);
+        const employees = snapshot.docs.map(doc => processDoc(doc) as PayrollEmployee);
+        console.log(`Fetched ${employees.length} payroll employees`);
+        return employees;
+    } catch (error) {
+        console.error('Error fetching payroll employees:', error);
+        return [];
+    }
 };
 
 export const savePayrollEmployee = async (employeeData: Omit<PayrollEmployee, 'id'> & {id?: string}): Promise<PayrollEmployee> => {
@@ -49,21 +57,73 @@ export const deletePayrollEmployee = async (id: string): Promise<void> => {
 // --- Payroll Record Service ---
 const payrollRecordsCollection = collection(db, 'payroll_records');
 
+// Cache for payroll records to avoid repeated queries
+const payrollRecordsCache = new Map<string, { data: PayrollRecord[], timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export const getPayrollRecords = async (month: string): Promise<PayrollRecord[]> => {
-    const q = query(payrollRecordsCollection, where('payroll_month', '==', month));
-    const snapshot = await getDocs(q);
-    const records = snapshot.docs.map(doc => processDoc(doc) as PayrollRecord);
-    // Sort client-side to avoid needing a composite index
-    return records.sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+    try {
+        console.log(`Fetching payroll records for month: ${month}`);
+        
+        // Check cache first
+        const cached = payrollRecordsCache.get(month);
+        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+            console.log(`Using cached payroll records for ${month}: ${cached.data.length} records`);
+            return cached.data;
+        }
+
+        console.log(`Cache miss, querying Firestore for ${month}...`);
+        
+        // For now, use simple query to avoid index issues
+        console.log('Using simple query (no composite index required)');
+        const q = query(payrollRecordsCollection, where('payroll_month', '==', month));
+        const snapshot = await getDocs(q);
+        const records = snapshot.docs.map(doc => processDoc(doc) as PayrollRecord);
+        
+        // Sort client-side
+        records.sort((a, b) => (a.employee_name || '').localeCompare(b.employee_name || ''));
+        
+        console.log(`Query completed. Found ${records.length} records.`);
+        if (records.length === 0) {
+            console.log(`No payroll records found for month ${month}. This might be expected if no payroll has been run yet.`);
+        }
+        
+        console.log(`Fetched ${records.length} payroll records for ${month}`);
+        
+        // Update cache
+        payrollRecordsCache.set(month, { data: records, timestamp: Date.now() });
+        
+        return records;
+    } catch (error) {
+        console.error(`Error fetching payroll records for ${month}:`, error);
+        // Return empty array on error to prevent UI blocking
+        return [];
+    }
 };
 
 export const getYearlyPayrollRecords = async (year: string): Promise<PayrollRecord[]> => {
+    // Check cache first
+    const cached = payrollRecordsCache.get(`year-${year}`);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data;
+    }
+
     const startDate = `${year}-01`;
     const endDate = `${parseInt(year) + 1}-01`;
-    const q = query(payrollRecordsCollection, where('payroll_month', '>=', startDate), where('payroll_month', '<', endDate));
+    const q = query(
+        payrollRecordsCollection, 
+        where('payroll_month', '>=', startDate), 
+        where('payroll_month', '<', endDate),
+        orderBy('payroll_month', 'desc'),
+        orderBy('employee_name', 'asc')
+    );
     const snapshot = await getDocs(q);
     const records = snapshot.docs.map(doc => processDoc(doc) as PayrollRecord);
-    return records.sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+    
+    // Update cache
+    payrollRecordsCache.set(`year-${year}`, { data: records, timestamp: Date.now() });
+    
+    return records;
 };
 
 
@@ -283,7 +343,7 @@ export const saveLeaveRequest = async (leaveData: Omit<LeaveRequest, 'id'> & {id
         const newLeaveData = { 
             ...dataToSave, 
             status: dataToSave.status || 'pending',
-            created_at: Timestamp.now() 
+            created_at: Timestamp.now().toDate().toISOString() 
         };
         const docRef = await addDoc(leaveRequestsCollection, newLeaveData);
         return { id: docRef.id, ...newLeaveData } as LeaveRequest;
@@ -308,10 +368,34 @@ export const deleteLeaveRequest = async (id: string): Promise<void> => {
 // --- Advance Payments Service ---
 const advancesCollection = collection(db, 'payroll_advances');
 
-export const getAdvancePayments = async (): Promise<AdvancePayment[]> => {
-    const q = query(advancesCollection, orderBy('date_given', 'desc'));
+// Cache for advance payments
+const advancePaymentsCache: { data: AdvancePayment[] | null, timestamp: number } = { data: null, timestamp: 0 };
+
+export const getAdvancePayments = async (employeeIds?: string[]): Promise<AdvancePayment[]> => {
+    // Check cache first for full data requests
+    if (!employeeIds && advancePaymentsCache.data && Date.now() - advancePaymentsCache.timestamp < CACHE_DURATION) {
+        return advancePaymentsCache.data;
+    }
+
+    let q;
+    if (employeeIds && employeeIds.length > 0) {
+        // Fetch only specific employee advances for better performance
+        q = query(advancesCollection, where('employee_id', 'in', employeeIds), orderBy('date_given', 'desc'));
+    } else {
+        // Fetch all advances
+        q = query(advancesCollection, orderBy('date_given', 'desc'));
+    }
+    
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => processDoc(doc) as AdvancePayment);
+    const advances = snapshot.docs.map(doc => processDoc(doc) as AdvancePayment);
+    
+    // Update cache only for full data requests
+    if (!employeeIds) {
+        advancePaymentsCache.data = advances;
+        advancePaymentsCache.timestamp = Date.now();
+    }
+    
+    return advances;
 };
 
 export const saveAdvancePayment = async (advanceData: Omit<AdvancePayment, 'id' | 'balance_amount' | 'status'> & {id?: string}): Promise<AdvancePayment> => {
@@ -390,16 +474,63 @@ const defaultSettings: PayrollSettings = {
 };
 
 export const getPayrollSettings = async (): Promise<PayrollSettings> => {
-    const docSnap = await getDoc(settingsDocRef);
-    if (docSnap.exists()) {
-        return { ...defaultSettings, ...docSnap.data() } as PayrollSettings;
-    } else {
-        // "Self-healing": If settings don't exist in DB, create them with defaults.
-        await savePayrollSettings(defaultSettings);
+    try {
+        console.log('Fetching payroll settings from Firestore...');
+        const docSnap = await getDoc(settingsDocRef);
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            console.log('Payroll settings found:', data);
+            return { ...defaultSettings, ...data } as PayrollSettings;
+        } else {
+            console.log('No payroll settings found, creating defaults...');
+            // "Self-healing": If settings don't exist in DB, create them with defaults.
+            await savePayrollSettings(defaultSettings);
+            console.log('Default settings created successfully');
+            return defaultSettings;
+        }
+    } catch (error) {
+        console.error('Error fetching payroll settings:', error);
+        // If there's any error, return default settings to prevent blocking the UI
+        console.log('Returning default settings due to error');
         return defaultSettings;
     }
 };
 
 export const savePayrollSettings = async (settings: PayrollSettings): Promise<void> => {
     await setDoc(settingsDocRef, settings, { merge: true });
+};
+
+// Cache management functions
+export const clearPayrollCache = (key?: string) => {
+    if (key) {
+        payrollRecordsCache.delete(key);
+    } else {
+        payrollRecordsCache.clear();
+        advancePaymentsCache.data = null;
+        advancePaymentsCache.timestamp = 0;
+    }
+};
+
+export const invalidatePayrollCache = () => {
+    clearPayrollCache();
+};
+
+// Debug function to check if any payroll records exist
+export const getAllPayrollRecords = async (): Promise<PayrollRecord[]> => {
+    try {
+        console.log('Fetching ALL payroll records for debugging...');
+        const q = query(payrollRecordsCollection, orderBy('payroll_month', 'desc'));
+        const snapshot = await getDocs(q);
+        const records = snapshot.docs.map(doc => processDoc(doc) as PayrollRecord);
+        console.log(`Total payroll records in database: ${records.length}`);
+        if (records.length > 0) {
+            const months = [...new Set(records.map(r => r.payroll_month))];
+            console.log('Available months:', months);
+        }
+        return records;
+    } catch (error) {
+        console.error('Error fetching all payroll records:', error);
+        return [];
+    }
 };
