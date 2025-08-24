@@ -19,6 +19,7 @@ import QuoteList from '@/components/sales/QuoteList';
 import SalesOrderList from '@/components/sales/SalesOrderList';
 import DeliveryOrderList from '@/components/sales/DeliveryOrderList';
 import PendingItems from '@/components/sales/PendingItems';
+import PendingItemsTVMode from '@/components/sales/PendingItemsTVMode';
 import PurchaseOrderList from '@/components/purchase/PurchaseOrderList';
 import QuoteForm from '@/components/sales/QuoteForm';
 import SalesOrderForm from '@/components/sales/SalesOrderForm';
@@ -55,6 +56,7 @@ import AdvancePayments from './components/payroll/AdvancePayments';
 import PayrollReports from './components/payroll/PayrollReports';
 import PayrollSettings from './components/payroll/PayrollSettings';
 import ProjectsModule from './components/projects/ProjectsModule';
+import TransportModule from './components/transport/TransportModule';
 
 function App() {
   return (
@@ -63,6 +65,14 @@ function App() {
         <ThemeProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route 
+                path="/sales/pending-items/tv-mode" 
+                element={
+                  <ProtectedRoute>
+                    <PendingItemsTVMode />
+                  </ProtectedRoute>
+                } 
+              />
               <Route 
                 path="/*"
                 element={
@@ -108,6 +118,12 @@ function App() {
 
                         <Route path="inventory" element={<InventoryList />} />
                         <Route path="inventory/:productId/history" element={<StockHistory />} />
+                        
+                        <Route path="transport/*" element={
+                          <ProtectedRoute permissionKey="hasErpAccess">
+                            <TransportModule />
+                          </ProtectedRoute>
+                        } />
                         
                         <Route path="scratchpad" element={<ScratchpadList />} />
                         <Route path="scratchpad/:id" element={<ScratchpadView />} />

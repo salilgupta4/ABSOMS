@@ -11,6 +11,7 @@ import { SkeletonTable } from './ui/Skeleton';
 import { getQuotes, getSalesOrders, getDeliveryOrders } from '@/services/salesService';
 import { getPurchaseOrders } from './purchase/PurchaseOrderList';
 import { getInventory } from './inventory/inventoryService';
+import PendingPaymentsCard from './transport/PendingPaymentsCard';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: string; loading: boolean; to: string; }> = ({ title, value, icon, color, loading, to }) => (
   <Link to={to} className="block">
@@ -72,7 +73,7 @@ const Dashboard: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [loading, setLoading] = useState(true);
     const [showAccessDenied, setShowAccessDenied] = useState(false);
-    const [accessDeniedType, setAccessDeniedType] = useState<'access_denied' | 'admin_required' | null>(null);
+    const [accessDeniedType, setAccessDeniedType] = useState<'access_denied' | 'admin_required' | 'admin_access_denied' | 'settings_access_denied' | null>(null);
     const [stats, setStats] = useState({
         openQuotes: 0,
         pendingSalesOrders: 0,
@@ -89,9 +90,9 @@ const Dashboard: React.FC = () => {
     useEffect(() => {
         // Check for access denied errors
         const errorType = searchParams.get('error');
-        if (errorType === 'access_denied' || errorType === 'admin_required') {
+        if (errorType === 'access_denied' || errorType === 'admin_required' || errorType === 'admin_access_denied' || errorType === 'settings_access_denied') {
             setShowAccessDenied(true);
-            setAccessDeniedType(errorType as 'access_denied' | 'admin_required');
+            setAccessDeniedType(errorType as 'access_denied' | 'admin_required' | 'admin_access_denied' | 'settings_access_denied');
             // Remove the error parameter from URL
             setSearchParams({});
         }
@@ -145,6 +146,10 @@ const Dashboard: React.FC = () => {
               <p className="text-red-600 dark:text-red-300 text-sm">
                 {accessDeniedType === 'admin_required' 
                   ? 'You need administrator privileges to access this feature. Please contact your administrator.'
+                  : accessDeniedType === 'admin_access_denied'
+                  ? 'Administrator access required for this feature. Please contact your system administrator.'
+                  : accessDeniedType === 'settings_access_denied'
+                  ? 'Settings access is restricted to Maker, Approver, and Admin roles. Please contact your administrator.'
                   : 'You don\'t have permission to access this module. Please contact your administrator.'
                 }
               </p>
@@ -220,7 +225,7 @@ const Dashboard: React.FC = () => {
       </div>
       
       {/* Recent Document Lists */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <DocumentListCard
             title="Last 5 Sales Orders"
             documents={lists.recentSalesOrders}
@@ -245,6 +250,8 @@ const Dashboard: React.FC = () => {
             numberKey="poNumber"
             nameKey="vendorName"
         />
+        {/* Pending Transport Payments - Only shown to admins */}
+        <PendingPaymentsCard />
       </div>
 
     </div>

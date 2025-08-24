@@ -8,19 +8,49 @@ import Button from '@/components/ui/Button';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { getCustomers, getCustomer } from '@/components/customers/CustomerList';
 import { getProducts } from '@/components/products/ProductList';
-import { saveQuote, getQuote } from '@/components/sales/QuoteList';
+import { saveQuote, getQuote } from '@/services/salesService';
 import { getTerms } from '@/components/settings/termsService';
 import { getPointsOfContact, getDefaultPointOfContact } from '@/services/pointOfContactService';
-import { Customer, Product, DocumentLineItem, Quote, PointOfContact, CompanyDetails } from '@/types';
+import { Customer, Product, DocumentLineItem, Quote, PointOfContact, CompanyDetails, UserRole } from '@/types';
 import { getCompanyDetails } from '@/components/settings/CompanyDetails';
 import { getEmailService } from '@/services/emailService';
+import { useAuth } from '@/contexts/AuthContext';
+import { canPerformAction } from '@/utils/permissions';
 
 const GST_RATE = 18; // 18%
+
+import { useSalesStore } from '@/stores/salesStore';
 
 const QuoteForm: React.FC = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const isEditing = !!id;
+    const { saveQuote } = useSalesStore();
+    const { user } = useAuth();
+
+    // Permission checks
+    const canCreate = canPerformAction(user, 'create');
+    const canEdit = canPerformAction(user, 'edit');
+    const isViewer = user?.role === UserRole.Viewer;
+
+    // Prevent access if user doesn't have required permissions
+    if ((!isEditing && !canCreate) || (isEditing && !canEdit)) {
+        return (
+            <div className="flex items-center justify-center h-64 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div className="text-center">
+                    <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-2">Access Denied</h3>
+                    <p className="text-red-600 dark:text-red-400">You don't have permission to {isEditing ? 'edit' : 'create'} quotes.</p>
+                    <Button 
+                        variant="secondary" 
+                        onClick={() => navigate('/sales/quotes')}
+                        className="mt-4"
+                    >
+                        Back to Quotes
+                    </Button>
+                </div>
+            </div>
+        );
+    }
 
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -217,35 +247,8 @@ const QuoteForm: React.FC = () => {
         };
         
         try {
-            console.log('Saving quote...', { isEditing, emailEnabled: companyDetails?.emailSettings?.enableNotifications });
-            const savedQuote = await saveQuote(quoteData as Omit<Quote, 'status' | 'quoteNumber'>);
-            console.log('Quote saved successfully:', savedQuote);
-            
-            // Send email notification for new quotes (not edits)
-            if (!isEditing && companyDetails?.emailSettings?.enableNotifications) {
-                console.log('Attempting to send email notification...');
-                try {
-                    const emailService = getEmailService(companyDetails.emailSettings);
-                    
-                    // Add timeout to prevent hanging
-                    const emailPromise = emailService.sendQuoteNotification(savedQuote, companyDetails);
-                    const timeoutPromise = new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Email sending timed out after 10 seconds')), 10000)
-                    );
-                    
-                    await Promise.race([emailPromise, timeoutPromise]);
-                    console.log('Quote creation email notification sent successfully');
-                    alert('Quote created and email notification sent!');
-                } catch (emailError) {
-                    console.error('Failed to send quote creation email:', emailError);
-                    alert('Quote created but email notification failed: ' + (emailError as Error).message);
-                    // Don't block the user flow if email fails
-                }
-            } else {
-                console.log('Email notification skipped:', { isEditing, emailEnabled: companyDetails?.emailSettings?.enableNotifications });
-                alert('Quote created successfully!');
-            }
-            
+            await saveQuote(quoteData as Omit<Quote, 'status' | 'quoteNumber'>);
+            alert('Quote saved successfully!');
             navigate('/sales/quotes');
         } catch (error) {
             console.error(error);
