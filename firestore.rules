@@ -101,6 +101,15 @@ service cloud.firestore {
       allow read, write: if hasErpAccess();
     }
     
+    match /transporters/{document} {
+      allow read, write: if hasErpAccess();
+      
+      // Allow access to transactions subcollection
+      match /transactions/{transactionId} {
+        allow read, write: if hasErpAccess();
+      }
+    }
+    
     // Payroll modules - Simplified access control
     match /payroll_employees/{document} {
       allow read, write: if hasPayrollAccess();
