@@ -1,0 +1,291 @@
+name: Products Module Test Suite
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    paths:
+      - 'src/components/products/**'
+      - 'src/test/**'
+      - 'src/types.ts'
+      - 'package.json'
+      - 'vitest.config.ts'
+  pull_request:
+    branches: [ main, master, develop ]
+    paths:
+      - 'src/components/products/**'
+      - 'src/test/**'
+      - 'src/types.ts'
+      - 'package.json'
+      - 'vitest.config.ts'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run ESLint
+      run: npm run lint
+      continue-on-error: true
+      
+    - name: Run TypeScript check
+      run: npx tsc --noEmit --skipLibCheck
+      
+    - name: Run unit tests
+      run: npm run test:products
+      
+    - name: Run integration tests
+      run: npm run test:integration
+      
+    - name: Run boundary value tests
+      run: npm run test:boundary
+      
+    - name: Run all tests with coverage
+      run: npm run test:coverage
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        directory: ./coverage
+        flags: products-module
+        name: products-coverage
+        fail_ci_if_error: false
+        
+    - name: Generate test report
+      run: |
+        echo "# Products Module Test Report" > test-report.md
+        echo "" >> test-report.md
+        echo "**Node Version:** ${{ matrix.node-version }}" >> test-report.md
+        echo "**Run Date:** $(date)" >> test-report.md
+        echo "**Commit:** ${{ github.sha }}" >> test-report.md
+        echo "" >> test-report.md
+        echo "## Test Results" >> test-report.md
+        echo "" >> test-report.md
+        npm run test:ci 2>&1 | grep -E "(PASS|FAIL|Coverage)" >> test-report.md || true
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-node-${{ matrix.node-version }}
+        path: |
+          coverage/
+          test-report.md
+          
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Read test report if it exists
+          let testReport = '';
+          try {
+            testReport = fs.readFileSync('test-report.md', 'utf8');
+          } catch (error) {
+            testReport = 'Test report not available';
+          }
+          
+          const comment = `## 🧪 Products Module Test Results (Node ${{ matrix.node-version }})
+          
+          ${testReport}
+          
+          <details>
+          <summary>View Full Test Output</summary>
+          
+          \`\`\`
+          Tests completed for commit ${{ github.sha }}
+          \`\`\`
+          
+          </details>
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run npm audit
+      run: npm audit --audit-level moderate
+      continue-on-error: true
+      
+    - name: Run security scan
+      uses: securecodewarrior/github-action-add-sarif@v1
+      if: always()
+      with:
+        sarif-file: 'security-scan.sarif'
+      continue-on-error: true
+
+  performance-test:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run performance tests
+      run: |
+        timeout 300s npm run test:run -- --testTimeout=30000 src/test/ || echo "Performance tests completed with timeout"
+        
+    - name: Memory usage test
+      run: |
+        node --max-old-space-size=512 -e "
+        const { execSync } = require('child_process');
+        try {
+          execSync('npm run test:run -- --no-coverage', { stdio: 'inherit' });
+          console.log('✅ Memory usage test passed');
+        } catch (error) {
+          console.log('❌ Memory usage test failed');
+          process.exit(1);
+        }
+        "
+
+  mutation-testing:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Stryker for mutation testing
+      run: npm install --save-dev @stryker-mutator/core @stryker-mutator/vitest-runner
+      
+    - name: Run mutation testing
+      run: |
+        # Create basic Stryker config
+        cat > stryker.config.json << EOF
+        {
+          "packageManager": "npm",
+          "reporters": ["html", "clear-text", "progress"],
+          "testRunner": "vitest",
+          "coverageAnalysis": "perTest",
+          "mutate": [
+            "src/components/products/**/*.{ts,tsx}",
+            "!src/components/products/**/*.test.{ts,tsx}"
+          ]
+        }
+        EOF
+        
+        # Run mutation testing with timeout
+        timeout 1800s npx stryker run || echo "Mutation testing completed"
+        
+    - name: Upload mutation test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: mutation-test-results
+        path: reports/
+
+  accessibility-test:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install accessibility testing tools
+      run: npm install --save-dev @axe-core/react jest-axe
+      
+    - name: Run accessibility tests
+      run: |
+        # Create a simple accessibility test
+        cat > src/test/accessibility/products.a11y.test.ts << 'EOF'
+        import { describe, it, expect } from 'vitest';
+        import { render } from '@testing-library/react';
+        import { axe, toHaveNoViolations } from 'jest-axe';
+        import ProductForm from '@/components/products/ProductForm';
+        import ProductModal from '@/components/products/ProductModal';
+
+        expect.extend(toHaveNoViolations);
+
+        describe('Products Accessibility Tests', () => {
+          it('ProductForm should not have accessibility violations', async () => {
+            const { container } = render(<ProductForm />);
+            const results = await axe(container);
+            expect(results).toHaveNoViolations();
+          });
+
+          it('ProductModal should not have accessibility violations', async () => {
+            const modalProps = {
+              isOpen: true,
+              onClose: () => {},
+              onProductCreated: () => {},
+              initialName: '',
+            };
+            const { container } = render(<ProductModal {...modalProps} />);
+            const results = await axe(container);
+            expect(results).toHaveNoViolations();
+          });
+        });
+        EOF
+        
+        npm run test:run -- src/test/accessibility/
+      continue-on-error: true

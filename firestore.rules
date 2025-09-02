@@ -13,29 +13,31 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
     }
     
-    // Helper function to check if user has access to a module
-    function hasModuleAccess(module) {
+    // Simplified ERP access check - just check hasErpAccess boolean
+    function hasErpAccess() {
       return isAuthenticated() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data[module] == true;
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.hasErpAccess == true);
     }
     
-    // Helper function for ERP access (Admin gets full access)
-    function hasErpAccess() {
-      return isCurrentUserAdmin() || hasModuleAccess('hasErpAccess');
-    }
-    
-    // Helper function for Payroll access (Admin gets full access)
+    // Simplified Payroll access check  
     function hasPayrollAccess() {
-      return isCurrentUserAdmin() || hasModuleAccess('hasPayrollAccess');
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.hasPayrollAccess == true);
     }
     
-    // Helper function for Projects access (Admin gets full access)
+    // Simplified Projects access check
     function hasProjectsAccess() {
-      return isCurrentUserAdmin() || hasModuleAccess('hasProjectsAccess');
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.hasProjectsAccess == true);
     }
     
-    // Users collection - Admin can create/read/update, users can read their own profile
+    // Users collection - users can read their own profile, admins can manage all
     match /users/{userId} {
       allow read: if isAuthenticated() && 
                      (request.auth.uid == userId || isCurrentUserAdmin());
@@ -46,17 +48,19 @@ service cloud.firestore {
       allow delete: if isCurrentUserAdmin();
     }
     
-    // Company settings - Admin only
+    // Company settings - Admin can write, ERP users can read
     match /company_settings/{document} {
-      allow read, write: if isCurrentUserAdmin();
+      allow read: if hasErpAccess();
+      allow write: if isCurrentUserAdmin();
     }
     
-    // Settings - Admin only
+    // Settings - Admin can write, ERP users can read
     match /settings/{document} {
-      allow read, write: if isCurrentUserAdmin();
+      allow read: if hasErpAccess();
+      allow write: if isCurrentUserAdmin();
     }
     
-    // ERP modules - Admin or users with ERP access
+    // ERP modules - Simplified access control
     match /customers/{document} {
       allow read, write: if hasErpAccess();
     }
@@ -93,7 +97,11 @@ service cloud.firestore {
       allow read, write: if hasErpAccess();
     }
     
-    // Payroll modules - Admin or users with Payroll access
+    match /point_of_contacts/{document} {
+      allow read, write: if hasErpAccess();
+    }
+    
+    // Payroll modules - Simplified access control
     match /payroll_employees/{document} {
       allow read, write: if hasPayrollAccess();
     }
@@ -120,7 +128,7 @@ service cloud.firestore {
       allow delete: if isCurrentUserAdmin();
     }
     
-    // Projects modules - Admin or users with Projects access
+    // Projects modules
     match /projects_module/{document} {
       allow read, write: if hasProjectsAccess();
     }
@@ -133,11 +141,6 @@ service cloud.firestore {
     // Scratchpads - authenticated users only
     match /scratchpads/{document} {
       allow read, write: if isAuthenticated();
-    }
-    
-    // Point of contacts - Admin or users with ERP access (fix collection name)
-    match /point_of_contacts/{document} {
-      allow read, write: if hasErpAccess();
     }
     
     // Default deny all other collections

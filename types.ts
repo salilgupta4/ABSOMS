@@ -73,7 +73,8 @@ export enum DocumentStatus {
   Closed = 'Closed',     // Quote is converted, SO is fully delivered
   Partial = 'Partial',   // SO is partially delivered
   Dispatched = 'Dispatched', // DO status
-  Superseded = 'Superseded' // Quote has been revised
+  Superseded = 'Superseded', // Quote has been revised
+  Expired = 'Expired'    // Quote has expired
 }
 
 export interface DocumentLineItem {
@@ -181,6 +182,7 @@ export interface PurchaseOrder {
     total: number;
     status: DocumentStatus;
     additionalDescription?: string;
+    terms?: string;
     pointOfContactId?: string;
 }
 
@@ -329,6 +331,31 @@ export interface PdfSettings {
     logoSize: number; // width in px
     signatureSize: number; // height in px
     footerImageSize: number; // height in px
+}
+
+// --- TRANSPORT TYPES ---
+
+export interface Transporter {
+  id: string;
+  name: string;
+  phone: string;
+  vehicleNumber: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransportTransaction {
+  id: string;
+  date: string; // ISO String
+  type: 'cost' | 'payment';
+  amount: number;
+  description: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approved_by?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // --- PAYROLL TYPES ---

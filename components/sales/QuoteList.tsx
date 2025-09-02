@@ -5,7 +5,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 const { Link, useNavigate, useLocation } = ReactRouterDOM;
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { Plus, FileUp, Edit, Trash2, Eye, ArrowUpDown } from 'lucide-react';
+import { Plus, FileUp, Edit, Trash2, Eye, ArrowUpDown, Download, Loader } from 'lucide-react';
 import { Quote, DocumentStatus, PointOfContact } from '@/types';
 import { db, Timestamp, DocumentSnapshot } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,13 @@ import { collection, query, orderBy, getDocs, doc, getDoc, updateDoc, writeBatch
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSearchableList } from '@/hooks/useSearchableList';
 import SearchableInput from '@/components/ui/SearchableInput';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import ReactDOM from 'react-dom/client';
+import { getPdfSettings } from '../settings/pdfSettingsService';
+import { getCompanyDetails } from '../settings/CompanyDetails';
+import PrintWrapper from '../Print/PrintWrapper';
+import QuotePrint from '../Print/QuotePrint';
 
 
 // --- FIRESTORE DATA SERVICE ---
@@ -95,8 +102,13 @@ export const updateQuote = async (updatedQuote: Quote): Promise<Quote> => {
     return updatedQuote;
 }
 
-const deleteQuote = async (id: string): Promise<void> => {
+export const deleteQuote = async (id: string): Promise<void> => {
     await deleteDoc(doc(db, "quotes", id));
+};
+
+export const updateQuoteStatus = async (id: string, status: DocumentStatus): Promise<void> => {
+    const quoteRef = doc(db, 'quotes', id);
+    await updateDoc(quoteRef, { status });
 };
 // --- END FIRESTORE DATA SERVICE ---
 
@@ -126,6 +138,7 @@ const QuoteList: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'issueDate', direction: 'descending' });
+    const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -204,6 +217,76 @@ const QuoteList: React.FC = () => {
                 console.error("Failed to delete quote:", err);
                 alert("An error occurred while deleting the quote.");
             });
+        }
+    };
+
+    const handleDownloadPdf = async (quote: Quote) => {
+        setGeneratingPdfId(quote.id);
+        try {
+            const [companyDetails, pdfSettings] = await Promise.all([
+                getCompanyDetails(),
+                getPdfSettings()
+            ]);
+
+            if (!companyDetails || !pdfSettings) {
+                alert('Company details or PDF settings not found');
+                return;
+            }
+
+            const ITEMS_PER_PAGE = 12;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const totalPages = Math.max(1, Math.ceil(quote.lineItems.length / ITEMS_PER_PAGE));
+        
+            for (let i = 0; i < totalPages; i++) {
+                const itemStartIndex = i * ITEMS_PER_PAGE;
+                const chunk = quote.lineItems.slice(itemStartIndex, itemStartIndex + ITEMS_PER_PAGE);
+                const pageQuote = { ...quote, lineItems: chunk };
+                const isLastPage = i === totalPages - 1;
+
+                const printContainer = document.createElement('div');
+                printContainer.style.position = 'absolute';
+                printContainer.style.left = '-9999px';
+                document.body.appendChild(printContainer);
+
+                const root = ReactDOM.createRoot(printContainer);
+                root.render(
+                    <PrintWrapper companyDetails={companyDetails} settings={pdfSettings} currentPage={i + 1} totalPages={totalPages}>
+                        <QuotePrint 
+                            quote={pageQuote} 
+                            settings={pdfSettings} 
+                            companyDetails={companyDetails}
+                            isLastPage={isLastPage}
+                            itemStartIndex={itemStartIndex}
+                            pointOfContact={pointsOfContact.find(p => p.id === quote.pointOfContactId)}
+                        />
+                    </PrintWrapper>
+                );
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                const canvas = await html2canvas(printContainer, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = pdf.internal.pageSize.getWidth();
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                if (i > 0) pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+                root.unmount();
+                document.body.removeChild(printContainer);
+            }
+
+            pdf.save(`${quote.quoteNumber}.pdf`);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF');
+        } finally {
+            setGeneratingPdfId(null);
         }
     };
 
@@ -378,6 +461,14 @@ const QuoteList: React.FC = () => {
                                                     Create SO
                                                 </Button>
                                             )}
+                                            <button 
+                                                onClick={() => handleDownloadPdf(q)} 
+                                                disabled={generatingPdfId === q.id}
+                                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title="Download PDF"
+                                            >
+                                                {generatingPdfId === q.id ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
+                                            </button>
                                             <Link to={`/sales/quotes/${q.id}/view`} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full"><Eye size={16} /></Link>
                                             {!isClosedStatus(q.status) && (
                                                 <>

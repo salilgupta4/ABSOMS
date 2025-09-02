@@ -286,7 +286,11 @@ export const saveLeaveRequest = async (leaveData: Omit<LeaveRequest, 'id'> & {id
             created_at: Timestamp.now() 
         };
         const docRef = await addDoc(leaveRequestsCollection, newLeaveData);
-        return { id: docRef.id, ...newLeaveData } as LeaveRequest;
+        return { 
+            id: docRef.id, 
+            ...newLeaveData,
+            created_at: newLeaveData.created_at.toDate().toISOString()
+        } as LeaveRequest;
     }
 };
 

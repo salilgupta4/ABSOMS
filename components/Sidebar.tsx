@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Building, ShoppingCart, Truck, Settings, FileText, ChevronDown, ChevronRight, Package, Box, X, SquarePen, Landmark, FolderOpen, Clock } from 'lucide-react';
+import { LayoutDashboard, Users, Building, ShoppingCart, Truck, Settings, FileText, ChevronDown, ChevronRight, Package, Box, X, SquarePen, Landmark, FolderOpen, Clock, Car } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
 import { canAccessModule, canAccessAdminFeatures, canAccessSettings } from '@/utils/permissions';
@@ -90,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen }) =>
   return (
     <div className={sidebarClasses}>
       <div className="flex items-center justify-between h-16 border-b border-slate-200 dark:border-slate-700 px-3">
-        <h1 className="text-lg font-bold text-primary">ABS OMS</h1>
+        <h1 className="text-2xl font-bold text-primary tracking-wider">ADAPTEC</h1>
          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1.5 text-slate-500 hover:text-primary">
             <X size={20}/>
         </button>
@@ -119,6 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, setIsSidebarOpen }) =>
             </CollapsibleLink>
 
             <SidebarLink to="/inventory" icon={<Box size={18} />} onClick={handleLinkClick}>Inventory</SidebarLink>
+            <SidebarLink to="/transport/list" icon={<Car size={18} />} onClick={handleLinkClick}>Transport</SidebarLink>
             <SidebarLink to="/scratchpad" icon={<SquarePen size={18} />} onClick={handleLinkClick}>Scratchpad</SidebarLink>
           </>
         )}

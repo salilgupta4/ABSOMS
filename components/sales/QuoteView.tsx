@@ -4,9 +4,10 @@ import * as ReactRouterDOM from 'react-router-dom';
 const { useParams, Link, useNavigate } = ReactRouterDOM;
 import ReactDOM from 'react-dom/client';
 import Card from '../ui/Card';
-import { Quote, CompanyDetails, PdfSettings, PointOfContact } from '../../types';
-import { getQuote } from './QuoteList';
-import { Loader, Edit, ArrowLeft, Download, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Quote, CompanyDetails, PdfSettings, PointOfContact, DocumentStatus } from '../../types';
+import { getQuote, updateQuoteStatus } from './QuoteList';
+import { createSalesOrderFromQuote } from './SalesOrderList';
+import { Loader, Edit, ArrowLeft, Download, FileText, CheckCircle, AlertCircle, FileUp, FileText as FileTextIcon } from 'lucide-react';
 import Button from '../ui/Button';
 import { getCompanyDetails } from '../settings/CompanyDetails';
 import { getPdfSettings } from '../settings/pdfSettingsService';
@@ -68,6 +69,8 @@ const QuoteView: React.FC = () => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
     const [emailStatus, setEmailStatus] = useState<'success' | 'error' | null>(null);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
+    const [convertingToSO, setConvertingToSO] = useState(false);
     
     useEffect(() => {
         if (id) {
@@ -78,6 +81,7 @@ const QuoteView: React.FC = () => {
                 getPdfSettings(),
                 getPointsOfContact()
             ]).then(([quoteData, companyData, pdfSettingsData, contactsData]) => {
+                console.log('Quote data loaded:', { quoteData, companyData, pdfSettingsData, contactsData });
                 setQuote(quoteData || null);
                 setCompanyDetails(companyData || null);
                 setPdfSettings(pdfSettingsData);
@@ -202,12 +206,73 @@ const QuoteView: React.FC = () => {
         }
     };
 
+    const handleStatusChange = async (newStatus: DocumentStatus) => {
+        if (!quote?.id) return;
+        
+        setUpdatingStatus(true);
+        try {
+            await updateQuoteStatus(quote.id, newStatus);
+            setQuote(prev => prev ? { ...prev, status: newStatus } : null);
+            alert('Quote status updated successfully');
+        } catch (error) {
+            console.error('Error updating quote status:', error);
+            alert('Failed to update quote status');
+        } finally {
+            setUpdatingStatus(false);
+        }
+    };
+
+    const handleConvertToSO = async () => {
+        if (!quote) return;
+        
+        setConvertingToSO(true);
+        try {
+            const clientPoNumber = prompt('Enter Client PO Number:');
+            if (clientPoNumber === null) return; // User cancelled
+            
+            const salesOrder = await createSalesOrderFromQuote(quote, clientPoNumber || '');
+            alert('Sales Order created successfully!');
+            navigate(`/sales/orders/${salesOrder.id}/view`);
+        } catch (error) {
+            console.error('Error converting to Sales Order:', error);
+            alert('Failed to convert to Sales Order');
+        } finally {
+            setConvertingToSO(false);
+        }
+    };
+
+    const getStatusColor = (status: DocumentStatus) => {
+        switch (status) {
+            case DocumentStatus.Draft:
+                return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+            case DocumentStatus.Sent:
+                return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+            case DocumentStatus.Discussion:
+                return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+            case DocumentStatus.Approved:
+                return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+            case DocumentStatus.Rejected:
+                return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+            case DocumentStatus.Expired:
+                return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400';
+            default:
+                return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        }
+    };
+
     if (loading) {
         return <Card title="Loading Quote..." bodyClassName="text-center p-8"><Loader className="animate-spin inline-block" /></Card>;
     }
 
     if (!quote || !companyDetails || !pdfSettings) {
-        return <Card title="Error"><p className="p-4">Quote or company details not found. <Link to="/sales/quotes" className="text-primary">Go back to list</Link>.</p></Card>;
+        const missingItems = [];
+        if (!quote) missingItems.push('Quote');
+        if (!companyDetails) missingItems.push('Company Details');
+        if (!pdfSettings) missingItems.push('PDF Settings');
+        
+        console.log('Missing data:', { quote: !!quote, companyDetails: !!companyDetails, pdfSettings: !!pdfSettings });
+        
+        return <Card title="Error"><p className="p-4">Missing: {missingItems.join(', ')}. <Link to="/sales/quotes" className="text-primary">Go back to list</Link>.</p></Card>;
     }
 
     return (
@@ -230,9 +295,34 @@ const QuoteView: React.FC = () => {
                     </span>
                 </div>
             )}
-             <div className="flex justify-between items-center">
-                <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-200">Quote #{quote.quoteNumber}{quote.revisionNumber ? `-Rev${quote.revisionNumber}` : ''}</h3>
+             <div className="flex justify-between items-start">
+                <div>
+                    <h3 className="text-3xl font-bold text-slate-800 dark:text-slate-200">Quote #{quote.quoteNumber}{quote.revisionNumber ? `-Rev${quote.revisionNumber}` : ''}</h3>
+                    <div className="flex items-center space-x-3 mt-2">
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Status:</span>
+                        <select 
+                            value={quote.status} 
+                            onChange={(e) => handleStatusChange(e.target.value as DocumentStatus)}
+                            disabled={updatingStatus}
+                            className={`px-2 py-1 rounded-full text-xs font-medium border-0 ${getStatusColor(quote.status)} ${updatingStatus ? 'opacity-50' : 'hover:opacity-80 cursor-pointer'}`}
+                        >
+                            {Object.values(DocumentStatus).map(status => (
+                                <option key={status} value={status}>{status}</option>
+                            ))}
+                        </select>
+                        {updatingStatus && <Loader size={16} className="animate-spin text-primary" />}
+                    </div>
+                </div>
                 <div className="flex items-center space-x-2">
+                    {quote.status === DocumentStatus.Approved && !quote.linkedSalesOrderId && (
+                        <Button 
+                            onClick={handleConvertToSO} 
+                            disabled={convertingToSO}
+                            icon={convertingToSO ? <Loader size={16} className="animate-spin" /> : <FileUp size={16} />}
+                        >
+                            {convertingToSO ? 'Converting...' : 'Convert to SO'}
+                        </Button>
+                    )}
                     <Button variant="secondary" onClick={() => navigate(-1)} icon={<ArrowLeft size={16}/>}>Back</Button>
                     <Button to={`/sales/quotes/${quote.id}/edit`} variant="secondary" icon={<Edit size={16}/>}>Edit</Button>
                     <Button onClick={handleExportCsv} variant="secondary" icon={<FileText size={16} />}>Export CSV</Button>

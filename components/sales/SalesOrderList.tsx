@@ -5,7 +5,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 const { Link, useLocation } = ReactRouterDOM;
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { Truck, Edit, Trash2, Eye, ArrowUpDown } from 'lucide-react';
+import { Truck, Edit, Trash2, Eye, ArrowUpDown, Download, Loader } from 'lucide-react';
 import { SalesOrder, DocumentStatus, Quote, PointOfContact } from '@/types';
 import { getDocumentNumberingSettings } from '@/components/settings/DocumentNumbering';
 import { getPointsOfContact } from '@/services/pointOfContactService';
@@ -18,6 +18,12 @@ import { getEmailService } from '@/services/emailService';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSearchableList } from '@/hooks/useSearchableList';
 import SearchableInput from '@/components/ui/SearchableInput';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import ReactDOM from 'react-dom/client';
+import { getPdfSettings } from '../settings/pdfSettingsService';
+import PrintWrapper from '../Print/PrintWrapper';
+import SalesOrderPrint from '../Print/SalesOrderPrint';
 
 // --- FIRESTORE DATA SERVICE ---
 const processDoc = (docSnap: DocumentSnapshot): SalesOrder => {
@@ -180,6 +186,7 @@ const SalesOrderList: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>({ key: 'orderDate', direction: 'descending' });
+    const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
     const location = useLocation();
 
     const canCreate = canPerformAction(user, 'create');
@@ -245,6 +252,76 @@ const SalesOrderList: React.FC = () => {
             }).catch(err => {
                 alert(err.message);
             });
+        }
+    };
+
+    const handleDownloadPdf = async (salesOrder: SalesOrder) => {
+        setGeneratingPdfId(salesOrder.id);
+        try {
+            const [companyDetails, pdfSettings] = await Promise.all([
+                getCompanyDetails(),
+                getPdfSettings()
+            ]);
+
+            if (!companyDetails || !pdfSettings) {
+                alert('Company details or PDF settings not found');
+                return;
+            }
+
+            const ITEMS_PER_PAGE = 12;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const totalPages = Math.max(1, Math.ceil(salesOrder.lineItems.length / ITEMS_PER_PAGE));
+        
+            for (let i = 0; i < totalPages; i++) {
+                const itemStartIndex = i * ITEMS_PER_PAGE;
+                const chunk = salesOrder.lineItems.slice(itemStartIndex, itemStartIndex + ITEMS_PER_PAGE);
+                const pageSalesOrder = { ...salesOrder, lineItems: chunk };
+                const isLastPage = i === totalPages - 1;
+
+                const printContainer = document.createElement('div');
+                printContainer.style.position = 'absolute';
+                printContainer.style.left = '-9999px';
+                document.body.appendChild(printContainer);
+
+                const root = ReactDOM.createRoot(printContainer);
+                root.render(
+                    <PrintWrapper companyDetails={companyDetails} settings={pdfSettings} currentPage={i + 1} totalPages={totalPages}>
+                        <SalesOrderPrint 
+                            order={pageSalesOrder} 
+                            settings={pdfSettings} 
+                            companyDetails={companyDetails}
+                            isLastPage={isLastPage}
+                            itemStartIndex={itemStartIndex}
+                            pointOfContact={pointsOfContact.find(p => p.id === salesOrder.pointOfContactId)}
+                        />
+                    </PrintWrapper>
+                );
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                const canvas = await html2canvas(printContainer, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = pdf.internal.pageSize.getWidth();
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                if (i > 0) pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+                root.unmount();
+                document.body.removeChild(printContainer);
+            }
+
+            pdf.save(`${salesOrder.orderNumber}.pdf`);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF');
+        } finally {
+            setGeneratingPdfId(null);
         }
     };
     
@@ -396,6 +473,14 @@ const SalesOrderList: React.FC = () => {
                                     </td>
                                     <td className="px-4 py-2 text-right">
                                         <div className="flex items-center justify-end space-x-2">
+                                            <button 
+                                                onClick={() => handleDownloadPdf(o)} 
+                                                disabled={generatingPdfId === o.id}
+                                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title="Download PDF"
+                                            >
+                                                {generatingPdfId === o.id ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
+                                            </button>
                                             <Link to={`/sales/orders/${o.id}/view`} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full"><Eye size={16} /></Link>
                                             {(o.status === DocumentStatus.Approved || o.status === DocumentStatus.Partial) && (
                                                 <>

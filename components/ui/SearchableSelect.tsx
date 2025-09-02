@@ -20,6 +20,9 @@ interface SearchableSelectProps {
   error?: boolean;
   name?: string;
   required?: boolean;
+  showAddOption?: boolean;
+  onAddNew?: (searchTerm: string) => void;
+  addOptionLabel?: string;
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -32,7 +35,10 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled = false,
   error = false,
   name,
-  required = false
+  required = false,
+  showAddOption = false,
+  onAddNew,
+  addOptionLabel = "Add New"
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +54,14 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (option.subtitle && option.subtitle.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  // Show add option when there are no matches and search term exists
+  const showAddNewOption = showAddOption && searchTerm.trim() && filteredOptions.length === 0;
+  
+  // Combined options list for display
+  const displayOptions = showAddNewOption 
+    ? [...filteredOptions, { value: '__add_new__', label: `${addOptionLabel}: "${searchTerm}"`, subtitle: 'Click to add this product' }]
+    : filteredOptions;
 
   // Get selected option
   const selectedOption = options.find(opt => opt.value === value);
@@ -111,14 +125,14 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       
       // Scroll to currently selected item if it exists
       if (value) {
-        const currentIndex = filteredOptions.findIndex(opt => opt.value === value);
+        const currentIndex = displayOptions.findIndex(opt => opt.value === value);
         if (currentIndex >= 0) {
           setSelectedIndex(currentIndex);
           setTimeout(() => scrollToSelectedItem(currentIndex), 100);
         }
       }
     }
-  }, [isOpen, value, filteredOptions]);
+  }, [isOpen, value, displayOptions]);
 
   // Calculate dropdown position
   const updateDropdownPosition = () => {
@@ -202,7 +216,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       case 'ArrowDown':
         e.preventDefault();
         setSelectedIndex(prev => {
-          const newIndex = prev < filteredOptions.length - 1 ? prev + 1 : 0;
+          const newIndex = prev < displayOptions.length - 1 ? prev + 1 : 0;
           // Scroll to new selection after state update
           setTimeout(() => scrollToSelectedItem(newIndex), 0);
           return newIndex;
@@ -212,7 +226,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       case 'ArrowUp':
         e.preventDefault();
         setSelectedIndex(prev => {
-          const newIndex = prev > 0 ? prev - 1 : filteredOptions.length - 1;
+          const newIndex = prev > 0 ? prev - 1 : displayOptions.length - 1;
           // Scroll to new selection after state update
           setTimeout(() => scrollToSelectedItem(newIndex), 0);
           return newIndex;
@@ -221,9 +235,13 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         
       case 'Enter':
         e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < filteredOptions.length) {
-          const selectedOption = filteredOptions[selectedIndex];
-          onChange(selectedOption.value, selectedOption);
+        if (selectedIndex >= 0 && selectedIndex < displayOptions.length) {
+          const selectedOption = displayOptions[selectedIndex];
+          if (selectedOption.value === '__add_new__') {
+            onAddNew?.(searchTerm);
+          } else {
+            onChange(selectedOption.value, selectedOption);
+          }
           setIsOpen(false);
         }
         break;
@@ -240,7 +258,11 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   };
 
   const handleOptionClick = (option: Option) => {
-    onChange(option.value, option);
+    if (option.value === '__add_new__') {
+      onAddNew?.(searchTerm);
+    } else {
+      onChange(option.value, option);
+    }
     setIsOpen(false);
   };
 
@@ -334,8 +356,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             id="dropdown-options"
             aria-activedescendant={selectedIndex >= 0 ? `option-${selectedIndex}` : undefined}
           >
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((option, index) => (
+            {displayOptions.length > 0 ? (
+              displayOptions.map((option, index) => (
                 <button
                   key={option.value}
                   type="button"
@@ -343,8 +365,11 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   className={`
                     w-full px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700
                     focus:outline-none focus:bg-slate-50 dark:focus:bg-slate-700
-                    ${index === selectedIndex ? 'bg-primary text-white' : 'text-slate-700 dark:text-slate-200'}
+                    ${index === selectedIndex ? 'bg-primary text-white' : 
+                      option.value === '__add_new__' ? 'text-blue-600 dark:text-blue-400' : 
+                      'text-slate-700 dark:text-slate-200'}
                     ${option.value === value ? 'font-medium' : ''}
+                    ${option.value === '__add_new__' ? 'border-t border-slate-200 dark:border-slate-600' : ''}
                   `}
                   onMouseEnter={() => setSelectedIndex(index)}
                   id={`option-${index}`}

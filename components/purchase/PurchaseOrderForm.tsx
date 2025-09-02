@@ -5,6 +5,7 @@ import { Loader, Trash2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import SearchableSelect from '../ui/SearchableSelect';
+import ProductModal from '../products/ProductModal';
 import { getVendors } from '../vendors/VendorList';
 import { getProducts } from '../products/ProductList';
 import { savePurchaseOrder, getPurchaseOrder } from './PurchaseOrderList';
@@ -29,9 +30,12 @@ const PurchaseOrderForm: React.FC = () => {
     const [deliveryAddress, setDeliveryAddress] = useState('');
     const [lineItems, setLineItems] = useState<DocumentLineItem[]>([]);
     const [additionalDescription, setAdditionalDescription] = useState('');
+    const [terms, setTerms] = useState('');
     
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [showProductModal, setShowProductModal] = useState(false);
+    const [productModalInitialName, setProductModalInitialName] = useState('');
 
     useEffect(() => {
         const loadData = async () => {
@@ -53,6 +57,7 @@ const PurchaseOrderForm: React.FC = () => {
                 setOrderDate(new Date(poData.orderDate).toISOString().split('T')[0]);
                 setLineItems(poData.lineItems);
                 setAdditionalDescription(poData.additionalDescription || '');
+                setTerms(poData.terms || '');
                 setDeliveryAddress(poData.deliveryAddress || '');
             } else {
                 const companyDetails = await getCompanyDetails();
@@ -111,6 +116,19 @@ const PurchaseOrderForm: React.FC = () => {
         setLineItems(prev => prev.filter(item => item.id !== lineItemId));
     };
 
+    const handleAddNewProduct = (searchTerm: string) => {
+        setProductModalInitialName(searchTerm);
+        setShowProductModal(true);
+    };
+
+    const handleProductCreated = (newProduct: Product) => {
+        setProducts(prev => [...prev, newProduct]);
+        setShowProductModal(false);
+        setProductModalInitialName('');
+        // Auto-add the new product to line items
+        addProductLineItem(newProduct.id);
+    };
+
     const { subTotal, gstTotal, total } = useMemo(() => {
         const sub = lineItems.reduce((acc, item) => acc + item.total, 0);
         const gst = sub * (GST_RATE / 100);
@@ -145,6 +163,7 @@ const PurchaseOrderForm: React.FC = () => {
             gstTotal,
             total: Math.round(total),
             additionalDescription,
+            terms,
             pointOfContactId: pointOfContactId || undefined,
         };
         
@@ -253,12 +272,25 @@ const PurchaseOrderForm: React.FC = () => {
                         options={products.map(p => ({ value: p.id, label: p.name }))}
                         value=""
                         placeholder="Add a product..."
+                        showAddOption={true}
+                        onAddNew={handleAddNewProduct}
+                        addOptionLabel="Add Product"
                     />
                 </div>
             </Card>
 
             <Card title="Additional Description / Notes">
                 <textarea value={additionalDescription} onChange={e => setAdditionalDescription(e.target.value)} rows={3} className="w-full p-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-xs" placeholder="Add any special notes or instructions for the vendor..."></textarea>
+            </Card>
+
+            <Card title="Terms & Conditions">
+                <textarea 
+                    value={terms} 
+                    onChange={e => setTerms(e.target.value)} 
+                    rows={4} 
+                    className="w-full p-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md text-xs" 
+                    placeholder="Enter terms and conditions for this purchase order..."
+                ></textarea>
             </Card>
             
              <Card title="Summary">
@@ -276,6 +308,13 @@ const PurchaseOrderForm: React.FC = () => {
                     {saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Purchase Order')}
                 </Button>
             </div>
+
+            <ProductModal
+                isOpen={showProductModal}
+                onClose={() => setShowProductModal(false)}
+                onProductCreated={handleProductCreated}
+                initialName={productModalInitialName}
+            />
         </form>
     );
 };

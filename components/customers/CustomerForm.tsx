@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 const { useParams, useNavigate } = ReactRouterDOM;
-import { Plus, Trash2, Home, Building, Loader } from 'lucide-react';
+import { Plus, Trash2, Home, Building, Loader, Copy } from 'lucide-react';
 import { Contact, Address, CustomerFormData, UserRole } from '../../types';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -130,6 +130,23 @@ const CustomerForm: React.FC = () => {
         setCustomer(prev => ({...prev, shippingAddresses: newAddresses}));
     };
 
+    const copyBillingToShipping = (shippingIndex: number) => {
+        const newAddresses = [...customer.shippingAddresses];
+        const currentAddress = newAddresses[shippingIndex];
+        
+        // Copy billing address fields to the selected shipping address
+        newAddresses[shippingIndex] = {
+            ...currentAddress,
+            line1: customer.billingAddress.line1,
+            line2: customer.billingAddress.line2,
+            city: customer.billingAddress.city,
+            state: customer.billingAddress.state,
+            pincode: customer.billingAddress.pincode,
+        };
+        
+        setCustomer(prev => ({ ...prev, shippingAddresses: newAddresses }));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isViewer) return;
@@ -214,6 +231,16 @@ const CustomerForm: React.FC = () => {
                             <div key={addr.id || index} className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 space-y-3 relative">
                                 {!isViewer && (
                                     <div className="absolute top-2 right-2 flex items-center space-x-2">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => copyBillingToShipping(index)} 
+                                            className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-800/30 flex items-center space-x-1"
+                                            disabled={loading}
+                                            title="Copy billing address to this shipping address"
+                                        >
+                                            <Copy size={12} />
+                                            <span>Copy Billing</span>
+                                        </button>
                                         <button type="button" onClick={() => setDefaultShipping(index)} className={`px-2 py-0.5 text-xs rounded-full ${addr.isDefault ? 'bg-primary text-white cursor-default' : 'bg-slate-200 hover:bg-slate-300'}`} disabled={loading || !!addr.isDefault}>
                                             {addr.isDefault ? 'Default' : 'Set as Default'}
                                         </button>

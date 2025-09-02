@@ -27,6 +27,15 @@ const PayrollReports: React.FC = () => {
     const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
     const [viewingRecord, setViewingRecord] = useState<PayrollRecord | null>(null);
 
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+
+    const handleMonthClick = (monthIndex: number) => {
+        const monthStr = String(monthIndex + 1).padStart(2, '0');
+        setMonthFilter(`${currentYear}-${monthStr}`);
+    };
+
     useEffect(() => {
         setLoading(true);
         Promise.all([
@@ -64,9 +73,30 @@ const PayrollReports: React.FC = () => {
                 </div>
             }
         >
-            <div className="p-4 border-b">
-                <label className="mr-4">Report for Month:</label>
-                <input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="p-2 border rounded bg-white dark:bg-slate-700" />
+            <div className="p-4 border-b space-y-4">
+                <div className="flex items-center space-x-4">
+                    <label className="font-medium">Report for Month:</label>
+                    <input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="p-2 border rounded bg-white dark:bg-slate-700" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <label className="font-medium mr-2">Quick Select:</label>
+                    {months.map((month, index) => (
+                        <button
+                            key={month}
+                            onClick={() => handleMonthClick(index)}
+                            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                parseInt(monthFilter.split('-')[1]) === index + 1 && parseInt(monthFilter.split('-')[0]) === currentYear
+                                    ? 'bg-primary text-white'
+                                    : index <= currentMonth
+                                    ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                            }`}
+                            disabled={index > currentMonth}
+                        >
+                            {month}
+                        </button>
+                    ))}
+                </div>
             </div>
             {loading ? <div className="p-4 text-center"><Loader className="animate-spin" /></div> : records.length > 0 ? (
                  <div className="overflow-x-auto">

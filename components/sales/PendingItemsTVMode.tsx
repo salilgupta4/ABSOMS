@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Sun, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SalesOrder, DocumentStatus } from '../../types';
-import { getSalesOrders } from '@/services/salesService';
+import { getSalesOrders } from './SalesOrderList';
 
 interface PendingItem {
     id: string;

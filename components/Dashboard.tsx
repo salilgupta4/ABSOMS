@@ -8,7 +8,9 @@ import { Quote, SalesOrder, DeliveryOrder, PurchaseOrder, InventoryItem, Documen
 import Card from './ui/Card';
 import Button from './ui/Button';
 import { SkeletonTable } from './ui/Skeleton';
-import { getQuotes, getSalesOrders, getDeliveryOrders } from '@/services/salesService';
+import { getQuotes } from './sales/QuoteList';
+import { getSalesOrders } from './sales/SalesOrderList';
+import { getDeliveryOrders } from './sales/DeliveryOrderList';
 import { getPurchaseOrders } from './purchase/PurchaseOrderList';
 import { getInventory } from './inventory/inventoryService';
 import PendingPaymentsCard from './transport/PendingPaymentsCard';

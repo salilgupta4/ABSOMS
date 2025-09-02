@@ -6,9 +6,10 @@ import { Trash2, Loader } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import ProductModal from '@/components/products/ProductModal';
 import { getCustomers, getCustomer } from '@/components/customers/CustomerList';
 import { getProducts } from '@/components/products/ProductList';
-import { saveQuote, getQuote } from '@/services/salesService';
+import { saveQuote, getQuote } from './QuoteList';
 import { getTerms } from '@/components/settings/termsService';
 import { getPointsOfContact, getDefaultPointOfContact } from '@/services/pointOfContactService';
 import { Customer, Product, DocumentLineItem, Quote, PointOfContact, CompanyDetails, UserRole } from '@/types';
@@ -74,6 +75,8 @@ const QuoteForm: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [customerLoading, setCustomerLoading] = useState(false);
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
+    const [showProductModal, setShowProductModal] = useState(false);
+    const [productModalInitialName, setProductModalInitialName] = useState('');
 
     // Initial data load
     useEffect(() => {
@@ -195,6 +198,19 @@ const QuoteForm: React.FC = () => {
         setSelectedTerms(prev => 
             prev.includes(term) ? prev.filter(t => t !== term) : [...prev, term]
         );
+    };
+
+    const handleAddNewProduct = (searchTerm: string) => {
+        setProductModalInitialName(searchTerm);
+        setShowProductModal(true);
+    };
+
+    const handleProductCreated = (newProduct: Product) => {
+        setProducts(prev => [...prev, newProduct]);
+        setShowProductModal(false);
+        setProductModalInitialName('');
+        // Auto-add the new product to line items
+        addProductLineItem(newProduct.id);
     };
 
     const { subTotal, gstTotal, total } = useMemo(() => {
@@ -368,6 +384,9 @@ const QuoteForm: React.FC = () => {
                         options={products.map(p => ({ value: p.id, label: p.name }))}
                         value=""
                         placeholder="Add a product..."
+                        showAddOption={true}
+                        onAddNew={handleAddNewProduct}
+                        addOptionLabel="Add Product"
                     />
                 </div>
             </Card>
@@ -421,6 +440,13 @@ const QuoteForm: React.FC = () => {
                     {saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Quote')}
                 </Button>
             </div>
+
+            <ProductModal
+                isOpen={showProductModal}
+                onClose={() => setShowProductModal(false)}
+                onProductCreated={handleProductCreated}
+                initialName={productModalInitialName}
+            />
         </form>
     );
 };

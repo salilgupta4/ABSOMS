@@ -119,18 +119,18 @@ function App() {
                         <Route path="inventory" element={<InventoryList />} />
                         <Route path="inventory/:productId/history" element={<StockHistory />} />
                         
-                        <Route path="transport/*" element={
-                          <ProtectedRoute permissionKey="hasErpAccess">
-                            <TransportModule />
-                          </ProtectedRoute>
-                        } />
-                        
                         <Route path="scratchpad" element={<ScratchpadList />} />
                         <Route path="scratchpad/:id" element={<ScratchpadView />} />
 
                         <Route path="projects/*" element={
                           <ProtectedRoute permissionKey="hasProjectsAccess">
                             <ProjectsModule />
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="transport/*" element={
+                          <ProtectedRoute permissionKey="hasErpAccess">
+                            <TransportModule />
                           </ProtectedRoute>
                         } />
 

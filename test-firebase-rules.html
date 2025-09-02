@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Rules Test</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <h1>Firebase Rules Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Initialize Firebase (you'll need to replace with your config)
+        const firebaseConfig = {
+            // Add your Firebase config here
+        };
+        
+        // This is a test page to debug Firebase rules
+        // You can manually test Firebase access here
+        
+        function logResult(message) {
+            document.getElementById('results').innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+        
+        logResult('Firebase Rules Test Page Loaded');
+        logResult('Please check your Firebase config and test manually');
+    </script>
+</body>
+</html>

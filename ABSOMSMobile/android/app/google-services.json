@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "568933240750",
+    "project_id": "tracker-38917",
+    "storage_bucket": "tracker-38917.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:568933240750:android:abcd1234efgh5678de423f",
+        "android_client_info": {
+          "package_name": "com.absomsmobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "568933240750-abcd1234efgh5678ijklmnop.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDis_mgCh6Ao7T-sAhor8xVizpZ06epjV0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "568933240750-abcd1234efgh5678ijklmnop.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

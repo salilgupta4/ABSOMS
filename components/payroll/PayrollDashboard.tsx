@@ -108,16 +108,49 @@ const PayrollDashboard: React.FC = React.memo(() => {
         setIsDeductionsModalOpen(prev => !prev);
     }, []);
 
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+
+    const handleMonthClick = (monthIndex: number) => {
+        const monthStr = String(monthIndex + 1).padStart(2, '0');
+        setSelectedDate(`${currentYear}-${monthStr}`);
+        setViewMode('monthly');
+    };
+
     return (
         <div className="space-y-6">
             <Card>
-                <div className="flex items-center space-x-4">
-                    <label className="font-medium">View Mode:</label>
-                    <select value={viewMode} onChange={e => setViewMode(e.target.value as any)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100">
-                        <option value="monthly">Monthly</option>
-                        <option value="yearly">Yearly</option>
-                    </select>
-                    <input type={viewMode} value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
+                <div className="space-y-4">
+                    <div className="flex items-center space-x-4">
+                        <label className="font-medium">View Mode:</label>
+                        <select value={viewMode} onChange={e => setViewMode(e.target.value as any)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100">
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                        <input type={viewMode} value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="p-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100" />
+                    </div>
+                    {viewMode === 'monthly' && (
+                        <div className="flex flex-wrap gap-2">
+                            <label className="font-medium mr-2">Quick Select:</label>
+                            {months.map((month, index) => (
+                                <button
+                                    key={month}
+                                    onClick={() => handleMonthClick(index)}
+                                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                        parseInt(selectedDate.split('-')[1]) === index + 1 && parseInt(selectedDate.split('-')[0]) === currentYear
+                                            ? 'bg-primary text-white'
+                                            : index <= currentMonth
+                                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                            : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                    }`}
+                                    disabled={index > currentMonth}
+                                >
+                                    {month}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </Card>
 

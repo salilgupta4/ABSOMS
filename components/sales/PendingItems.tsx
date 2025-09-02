@@ -5,7 +5,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Loader, Clock, Package, AlertCircle, ArrowUpDown, Download, FileText, Truck, ChevronUp, ChevronDown, Monitor } from 'lucide-react';
 import { SalesOrder, DocumentStatus } from '../../types';
-import { getSalesOrders } from '@/services/salesService';
+import { getSalesOrders } from './SalesOrderList';
 import { Search } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -267,11 +267,11 @@ const PendingItems: React.FC = () => {
                 <div className="flex items-center space-x-4">
                     <div className="flex space-x-2">
                         <Button 
-                            variant="primary" 
+                            variant="secondary" 
                             size="sm" 
                             onClick={() => navigate('/sales/pending-items/tv-mode')} 
                             icon={<Monitor size={16} />}
-                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            className="!bg-purple-600 !text-white hover:!bg-purple-700"
                         >
                             TV Mode
                         </Button>
