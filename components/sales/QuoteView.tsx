@@ -81,7 +81,6 @@ const QuoteView: React.FC = () => {
                 getPdfSettings(),
                 getPointsOfContact()
             ]).then(([quoteData, companyData, pdfSettingsData, contactsData]) => {
-                console.log('Quote data loaded:', { quoteData, companyData, pdfSettingsData, contactsData });
                 setQuote(quoteData || null);
                 setCompanyDetails(companyData || null);
                 setPdfSettings(pdfSettingsData);
@@ -270,7 +269,6 @@ const QuoteView: React.FC = () => {
         if (!companyDetails) missingItems.push('Company Details');
         if (!pdfSettings) missingItems.push('PDF Settings');
         
-        console.log('Missing data:', { quote: !!quote, companyDetails: !!companyDetails, pdfSettings: !!pdfSettings });
         
         return <Card title="Error"><p className="p-4">Missing: {missingItems.join(', ')}. <Link to="/sales/quotes" className="text-primary">Go back to list</Link>.</p></Card>;
     }

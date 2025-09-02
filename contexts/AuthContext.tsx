@@ -24,7 +24,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (firebaseUser) {
         try {
           // User is signed in, get their profile from Firestore
-          console.log(`Attempting to load profile for user: ${firebaseUser.email}`);
           
           // Retry logic for newly created users (handles race conditions)
           const loadUserProfile = async (retryCount = 0): Promise<void> => {
@@ -33,7 +32,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             if (userDoc.exists()) {
               const userData = userDoc.data();
-              console.log('User profile loaded successfully:', userData);
               setUser({
                 id: firebaseUser.uid,
                 email: firebaseUser.email || '',
@@ -48,20 +46,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             // If profile not found and this is a retry (likely new user), wait and try again
             if (retryCount < 3) {
-              console.log(`User profile not found, retrying in ${(retryCount + 1) * 1000}ms... (attempt ${retryCount + 1}/3)`);
               await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
               return loadUserProfile(retryCount + 1);
             }
             
             // After 3 retries, show error
             console.error(`User profile not found in Firestore for ${firebaseUser.email} (${firebaseUser.uid}) after 3 retries`);
-            console.log('Available user data from Firebase Auth:', {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              emailVerified: firebaseUser.emailVerified,
-              creationTime: firebaseUser.metadata.creationTime
-            });
             
             // Check if this is a newly created user (within last 10 seconds)
             const isNewUser = firebaseUser.metadata.creationTime && 

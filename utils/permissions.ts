@@ -98,13 +98,6 @@ export const canPerformAction = (user: User | null, action: 'create' | 'edit' | 
 export const canAccessModule = (user: User | null, module: 'erp' | 'payroll' | 'projects' | 'admin'): boolean => {
   if (!user) return false;
   
-  console.log(`Checking access for module: ${module}`, {
-    userRole: user.role,
-    hasErpAccess: user.hasErpAccess,
-    hasPayrollAccess: user.hasPayrollAccess,
-    hasProjectsAccess: user.hasProjectsAccess,
-    userId: user.id
-  });
   
   switch (module) {
     case 'erp':
@@ -113,7 +106,6 @@ export const canAccessModule = (user: User | null, module: 'erp' | 'payroll' | '
       return user.hasPayrollAccess;
     case 'projects':
       const hasProjectsAccess = user.role === UserRole.Admin || user.hasProjectsAccess;
-      console.log(`Projects access result: ${hasProjectsAccess} (Admin: ${user.role === UserRole.Admin}, hasProjectsAccess: ${user.hasProjectsAccess})`);
       return hasProjectsAccess;
     case 'admin':
       return canAccessAdminFeatures(user);
