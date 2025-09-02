@@ -1,4 +1,4 @@
-# ABS OMS with Payroll - Firebase ERP India
+# ABS ERP - Firebase ERP India
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![React](https://img.shields.io/badge/React-18.2.0-blue)](https://reactjs.org/)
@@ -8,7 +8,7 @@
 
 ## 🚀 Overview
 
-ABS OMS (Order Management System) with Payroll is a comprehensive Enterprise Resource Planning (ERP) system designed specifically for Indian businesses. Built with modern web technologies, it provides a unified platform for managing sales, purchases, inventory, payroll, customer relationships, and project management.
+ABS ERP (formerly ABS OMS) is a comprehensive Enterprise Resource Planning system designed specifically for Indian businesses. Built with modern web technologies and powered by ADAPTEC branding, it provides a unified platform for managing sales, purchases, inventory, payroll, customer relationships, and project management.
 
 ### ✨ Key Features
 
@@ -292,6 +292,34 @@ npm run test:coverage # Generate coverage reports
 - Time to Interactive: <3s
 - Bundle Size: <2MB (compressed)
 
+## 🚨 Recent Fixes & Updates (v2.2.0)
+
+### 🔐 Firebase Permission System Fix
+**Issue**: Maker/Approver users could view lists but couldn't access individual documents (quotes, sales orders, etc.).
+
+**Solution**: Completely rewrote Firebase security rules with simplified logic:
+- Direct boolean checks instead of complex helper functions
+- Proper read access to settings collections for non-admin users
+- Maintained security while fixing functionality
+
+### 🎨 UI/UX Improvements
+- **Branding Update**: Updated from "ABS OMS" to "ABS ERP" throughout the application
+- **Header Branding**: Changed from "ABSOMS" to "ADAPTEC" (larger, all-caps styling)
+- **TV Mode Fix**: Fixed button styling inconsistencies
+- **Month Filters**: Added quick-access month filter buttons in payroll module
+
+### 🏗️ Production Readiness
+- **Build Optimization**: Implemented code splitting for better performance
+- **Hostinger Deployment**: Added complete deployment guides for shared hosting
+- **TypeScript Fixes**: Resolved all compilation errors for production builds
+- **Documentation**: Added comprehensive deployment and debugging guides
+
+### 📚 New Documentation Files
+- `PERMISSION_DEBUG.md` - Firebase permission debugging guide
+- `TEST_USER_PERMISSIONS.md` - User permission testing checklist
+- `HOSTINGER_DEPLOYMENT.md` - Hostinger deployment instructions
+- `CHANGES_SINCE_LAST_COMMIT.md` - Detailed changelog
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -385,6 +413,12 @@ For support and questions:
 - [ ] Advanced Inventory Planning
 
 ### Version History
+- **v2.2.0** - **CURRENT** - Fixed Firebase permission system, enhanced ERP functionality, production-ready deployment
+  - 🔐 **Critical Fix**: Resolved Maker/Approver access issues with simplified Firebase rules
+  - 🎨 **Branding Update**: ABS OMS → ABS ERP, ABSOMS → ADAPTEC header
+  - 📊 **Payroll Enhancement**: Added month filter buttons for easy navigation
+  - 🏗️ **Production Ready**: Optimized build system, Hostinger deployment support
+  - 📚 **Documentation**: Comprehensive deployment guides and permission debugging
 - **v2.1.0** - Enhanced TV Mode, improved UI consistency
 - **v2.0.0** - Complete payroll system, mobile app
 - **v1.5.0** - Project management module
